@@ -1,0 +1,42 @@
+/* Pin the auto-generation disclaimer to the top of the viewport so it
+   remains visible at every scroll position. Docusaurus does not do this
+   by default; the announcement bar otherwise scrolls out of view within
+   the first screen of content. */
+
+div[class*="announcementBar_"] {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1001;
+}
+
+.navbar {
+  top: var(--docusaurus-announcement-bar-height, 30px);
+}
+
+html {
+  scroll-padding-top: calc(
+    var(--ifm-navbar-height) +
+    var(--docusaurus-announcement-bar-height, 30px) +
+    1rem
+  );
+}
+
+/* Slightly tighter prose for the dense math chapters. */
+.markdown h1 {
+  --ifm-h1-font-size: 2rem;
+}
+.markdown h2 {
+  --ifm-h2-font-size: 1.5rem;
+  margin-top: 2.5rem;
+}
+.markdown h3 {
+  --ifm-h3-font-size: 1.2rem;
+  margin-top: 1.75rem;
+}
+
+/* KaTeX block equations get a touch of breathing room. */
+.katex-display {
+  margin: 1.25rem 0;
+}

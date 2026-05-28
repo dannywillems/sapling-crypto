@@ -1,0 +1,103 @@
+# Onboarding docs build and deploy.
+#
+# Same-branch deploy: source lives at `onboarding/` on this branch
+# (`onboarding`); the built static site is committed back to the root
+# of the same branch. GitHub Pages is configured as
+# "Deploy from a branch" -> `onboarding` -> `/ (root)`.
+#
+# The `paths-ignore` block prevents the deploy commit from re-triggering
+# this workflow. The `[skip ci]` suffix in the commit message is a
+# defense in depth.
+#
+# To enable Pages after first merging this workflow:
+# 1. Settings -> Pages -> Build and deployment -> Source: "Deploy from a
+#    branch".
+# 2. Branch: `onboarding`, folder: `/ (root)`.
+# 3. Push any commit to `onboarding/**` to trigger the first build.
+
+name: Onboarding docs
+
+on:
+  push:
+    branches: [onboarding]
+    paths-ignore:
+      - "index.html"
+      - "404.html"
+      - "sitemap.xml"
+      - "opensearch.xml"
+      - "manifest.json"
+      - "assets/**"
+      - "img/**"
+      - "katex/**"
+      - "search-index-*.json"
+      - "styles.*.css"
+      - "main.*.js"
+      - "runtime~main.*.js"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-onboarding-docs
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+
+      - name: Install dependencies
+        working-directory: onboarding
+        run: npm install
+
+      - name: Build site
+        working-directory: onboarding
+        run: npx docusaurus build
+
+      - name: Stage built site to root
+        run: |
+          set -euo pipefail
+          # Snapshot the build into a temp dir.
+          TMP="$(mktemp -d)"
+          cp -R onboarding/build/. "$TMP/"
+
+          # Wipe only the previous deploy artefacts at the root.
+          # Never touch the source directories (onboarding/, src/,
+          # .github/, supply-chain/, etc).
+          rm -f index.html 404.html sitemap.xml opensearch.xml \
+                manifest.json
+          rm -rf assets katex img
+          # search-index files have hashed names; clean by glob.
+          find . -maxdepth 1 -type f -name "search-index-*.json" \
+                 -delete
+          find . -maxdepth 1 -type f -name "styles.*.css" -delete
+          find . -maxdepth 1 -type f -name "main.*.js" -delete
+          find . -maxdepth 1 -type f -name "runtime~main.*.js" \
+                 -delete
+
+          # Overlay new build at the repository root.
+          cp -R "$TMP/." ./
+
+      - name: Commit and push deploy artefacts
+        env:
+          GIT_AUTHOR_NAME: "github-actions[bot]"
+          GIT_AUTHOR_EMAIL: "41898282+github-actions[bot]@users.noreply.github.com"
+          GIT_COMMITTER_NAME: "github-actions[bot]"
+          GIT_COMMITTER_EMAIL: "41898282+github-actions[bot]@users.noreply.github.com"
+        run: |
+          set -euo pipefail
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No deploy changes to commit."
+            exit 0
+          fi
+          git commit -m "docs: deploy onboarding site [skip ci]"
+          git push origin "HEAD:onboarding"
