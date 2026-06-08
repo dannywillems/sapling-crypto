@@ -20,6 +20,96 @@ By the end you should be able to draw, from memory, the derivation DAG from
 `seed` to [`PaymentAddress`][PaymentAddress], name each edge function, and
 locate each node in the source.
 
+## 1.5 a one-page reminder of how a Sapling spend works
+
+Before naming eight keys it helps to remember what actually happens when a
+shielded user spends. The keys are not arbitrary; each one exists because some
+step below needs exactly that capability and no more. Read this section as a
+checklist of "what must someone be able to do", then read section 2 as "which
+key gives them that ability".
+
+### 1.5.1 the state on chain
+
+A shielded balance is not an account. It is a set of **notes**. A note is a
+tuple
+
+$$
+\mathsf{note} = (\mathsf{d}, \mathsf{pk_d}, v, \mathsf{rcm})
+$$
+
+where $(\mathsf{d}, \mathsf{pk_d})$ identifies the recipient (the
+`PaymentAddress`), $v$ is the value, and $\mathsf{rcm}$ is the commitment
+trapdoor. The chain never stores the note. It stores only
+
+- the **note commitment**
+  $\mathsf{cm} =
+  \mathsf{NoteCommit}(\mathsf{g_d}, \mathsf{pk_d}, v, \mathsf{rcm})$,
+  appended to a global incremental Merkle tree (the note commitment tree);
+- the **nullifier set**, a set of opaque 32-byte tags that record which notes
+  have already been spent.
+
+Spending a note is therefore: prove that some note exists in the tree, reveal
+its nullifier, and create new notes for the recipients of the spend.
+
+### 1.5.2 the four things the spender must do
+
+For each input note the spender must be able to:
+
+1. **Prove the note is in the tree.** Knowledge of a Merkle path from
+   $\mathsf{cm}$ to the published anchor. No key needed for the path itself, but
+   the spender must know the note, which means the spender must have been able
+   to **decrypt it on receipt**.
+2. **Prove that the note has not already been spent**, by revealing its
+   nullifier $\mathsf{nf}$. The chain refuses any transaction whose nullifier is
+   already in the set. Deriving $\mathsf{nf}$ requires a secret tied to the note
+   (otherwise anyone could mark anyone's notes as spent).
+3. **Authorize the spend**, so that only the legitimate holder of the note can
+   move it. This is a signature over the transaction, tied to a public value
+   committed inside the Spend proof.
+4. **Produce the proof itself**, a Groth16 Spend proof certifying that (1), (2),
+   and (3) are consistent: the spender knows a note in the tree, the revealed
+   nullifier matches that note, and the signing key matches the note's owner.
+
+The same spender must also, for each new recipient, **create an output**: build
+a fresh note, encrypt it to the recipient, and prove (in the Output circuit)
+that the encrypted note is well-formed and its value commitment is consistent
+with the spend.
+
+Add to that the bookkeeping side: a wallet observer must be able to **recognize
+own activity** without holding the spending key, both on the incoming side
+(notes addressed to me) and the outgoing side (notes I sent, which I want to
+remember after I no longer have the plaintext).
+
+### 1.5.3 mapping each ability to a key
+
+Each ability in 1.5.2 is granted by exactly one secret, and the names of the
+keys track that one-to-one mapping:
+
+| Ability                                                    | Secret used                 | Name                                              |
+| ---------------------------------------------------------- | --------------------------- | ------------------------------------------------- |
+| decrypt an incoming note to learn $(v, \mathsf{rcm})$      | incoming viewing key        | $\mathsf{ivk}$                                    |
+| compute the nullifier of a note I own                      | nullifier secret            | $\mathsf{nsk}$ (or its public form $\mathsf{nk}$) |
+| sign the spend authorization                               | spend authorizing secret    | $\mathsf{ask}$ (public form $\mathsf{ak}$)        |
+| build the Spend proof without holding $\mathsf{ask}$       | proving capability          | $(\mathsf{ak}, \mathsf{nsk})$                     |
+| re-decrypt a note I sent (audit / change tracking)         | outgoing viewing key        | $\mathsf{ovk}$                                    |
+| publish a fresh unlinkable receive address                 | diversifier layer           | $\mathsf{d}, \mathsf{g_d}, \mathsf{pk_d}$         |
+| derive many diversifiers deterministically from an HD seed | diversifier key             | $\mathsf{dk}$                                     |
+| encrypt one output to its recipient                        | per-output ephemeral secret | $\mathsf{esk}$                                    |
+
+Two consequences fall out of this table and explain the rest of the chapter:
+
+- The reason `ProofGenerationKey = (ak, nsk)` exists is that abilities 1
+  (decrypt), 2 (nullifier), and 4 (proof) can all be done without ability 3
+  (sign). That is the hardware-wallet split: the slow machine proves, the small
+  machine signs.
+- The reason `FullViewingKey = (ak, nk, ovk)` exists is that audit needs to
+  recognize both incoming and outgoing activity without ever signing or proving.
+  It cannot move funds because it lacks $\mathsf{nsk}$ (cannot produce a valid
+  in-circuit nullifier preimage) and $\mathsf{ask}$ (cannot sign).
+
+Section 2 now restates this as a capability ladder and gives the workflows that
+motivate each rung.
+
 ## 2. Why so many keys
 
 Sapling could in principle drive everything from one secret. It does not. The
