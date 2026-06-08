@@ -15,11 +15,11 @@ append-only structures: the Merkle tree of note commitments (chapter 6) and a
 flat set of nullifiers maintained by each full node. A spend reveals a
 nullifier; nodes reject any block that contains a nullifier that already
 appeared in the chain. The nullifier formula has a subtle property called
-**faerie-gold defence** that prevents an attacker who shares a `cmu` with
+**faerie-gold defence** that prevents an attacker who shares a [`cmu`][cmu] with
 another note from being able to spend it twice.
 
 This chapter spells out the formula, the position-in-tree parameter, and the
-path from `Note::from_parts` to `Nullifier`.
+path from [`Note::from_parts`][Note::from_parts] to [`Nullifier`][Nullifier].
 
 ## 2. Definitions
 
@@ -61,9 +61,9 @@ does not maintain that set; it only computes nullifiers and exposes them.
 Maintenance is the caller's job (typically `zebrad` or `zcashd`).
 
 **Definition 8.4 (Rseed and rcm).** A note's seed randomness is either
-pre-ZIP-212 (a $\mathbb{F}_{r_{\mathbb{J}}}$ scalar used as `rcm` directly) or
-post-ZIP-212 (a 32-byte buffer from which both `rcm` and the ephemeral
-encryption secret `esk` are derived via `PrfExpand::SAPLING_RCM` /
+pre-ZIP-212 (a $\mathbb{F}_{r_{\mathbb{J}}}$ scalar used as [`rcm`][rcm]
+directly) or post-ZIP-212 (a 32-byte buffer from which both `rcm` and the
+ephemeral encryption secret `esk` are derived via `PrfExpand::SAPLING_RCM` /
 `SAPLING_ESK`). Code:
 [`Rseed`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L19-L42),
 [`Note::derive_esk`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L147-L155).
@@ -72,22 +72,23 @@ encryption secret `esk` are derived via `PrfExpand::SAPLING_RCM` /
 
 ### 3.1 The nullifier
 
-`Nullifier` is a 32-byte newtype. The derivation is two lines:
+[`Nullifier`][Nullifier] is a 32-byte newtype. The derivation is two lines:
 
 ```rust reference title="src/note/nullifier.rs"
 https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note/nullifier.rs
 ```
 
 Note that `Nullifier::derive` is `pub(super)`, so callers cannot construct one
-without going through `Note::nf`. The only public entry point is the byte-level
+without going through [`Note::nf`][Note::nf]. The only public entry point is the
+byte-level
 [`Nullifier::from_slice`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note/nullifier.rs#L26-L28),
 which is for parsing wire data, not for deriving.
 
 ### 3.2 Position mixing
 
-`mixing_pedersen_hash` is the function that adds the position to the commitment.
-Despite its name, it is a single scalar multiplication plus an addition, not a
-Pedersen hash:
+[`mixing_pedersen_hash`][mixing_pedersen_hash] is the function that adds the
+position to the commitment. Despite its name, it is a single scalar
+multiplication plus an addition, not a Pedersen hash:
 
 ```rust reference title="src/spec.rs::mixing_pedersen_hash"
 https://github.com/zcash/sapling-crypto/blob/0.7.0/src/spec.rs#L50-L60
@@ -111,7 +112,7 @@ the result is constant-size regardless of the inputs' representations.
 
 ### 3.4 Notes
 
-The `Note` type ties it all together:
+The [`Note`][Note] type ties it all together:
 
 ```rust reference title="src/note.rs (Note::nf)"
 https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L100-L120
@@ -134,8 +135,8 @@ information about the spending pattern.
 
 - **Position omitted from the nullifier formula.** A naive
   $\mathsf{PRF^{nf}_{\mathsf{nk}}}(c)$ formulation lets an attacker who finds
-  two notes with the same `cmu` (e.g. by maliciously choosing `rseed`) spend
-  each one twice. The position mixing defeats this. Caught by: the
+  two notes with the same [`cmu`][cmu] (e.g. by maliciously choosing `rseed`)
+  spend each one twice. The position mixing defeats this. Caught by: the
   [Spend circuit](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/circuit.rs#L398-L427)
   computes the perturbed commitment in-circuit and feeds it to a BLAKE2s gadget;
   without the perturbation the constraint count changes and the
@@ -147,8 +148,8 @@ information about the spending pattern.
   scalar, which is a different commitment than the spec's `PrfExpand`
   derivation. Caught by: the existing test vectors in
   `test_vectors::note_encryption` exercise both pre- and post-ZIP-212 paths.
-- **Nullifier byte order swapped.** The 32 bytes returned by `prf_nf` are
-  written into the wire format as-is. Reversing them on the wire (e.g. by
+- **Nullifier byte order swapped.** The 32 bytes returned by [`prf_nf`][prf_nf]
+  are written into the wire format as-is. Reversing them on the wire (e.g. by
   accidentally calling `.reverse()` somewhere) produces nullifiers that other
   nodes' indexes do not match. Caught by: nothing automatic; a deviation here
   breaks consensus immediately and is caught on the first block built.
@@ -169,15 +170,16 @@ information about the spending pattern.
    and confirm via the existing
    [`nullifier_position_generator` test](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/constants.rs#L319-L325)
    that it equals
-   `find_group_hash(&[], NULLIFIER_POSITION_IN_TREE_GENERATOR_PERSONALIZATION)`.
+   [`find_group_hash`][find_group_hash]`(&[], NULLIFIER_POSITION_IN_TREE_GENERATOR_PERSONALIZATION)`.
    Run that test.
-2. **Compute one nullifier by hand.** Construct a `Note` with value zero,
-   deterministic recipient, and `Rseed::BeforeZip212(0)`. Compute its
-   `cm_full_point` by hand using the windowed Pedersen commitment. Then mix in
-   `position = 0`. Then BLAKE2s with personalisation `b"Zcash_nf"`, keyed by
-   `nk` serialized as 32 bytes. Compare to `note.nf(&nk, 0).0`.
-3. **Add a constant-time-equality test for `Nullifier`.** `Nullifier` already
-   impls
+2. **Compute one nullifier by hand.** Construct a [`Note`][Note] with value
+   zero, deterministic recipient, and [`Rseed`][Rseed]`::BeforeZip212(0)`.
+   Compute its [`cm_full_point`][cm_full_point] by hand using the windowed
+   Pedersen commitment. Then mix in `position = 0`. Then BLAKE2s with
+   personalisation `b"Zcash_nf"`, keyed by `nk` serialized as 32 bytes. Compare
+   to `note.`[`nf`][nf]`(&nk, 0).0`.
+3. **Add a constant-time-equality test for [`Nullifier`][Nullifier].**
+   `Nullifier` already impls
    [`ConstantTimeEq`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note/nullifier.rs#L51-L55).
    Add a unit test that checks two equal nullifiers return `Choice::from(1)` and
    two unequal ones return `Choice::from(0)`. Verify the test passes under
@@ -189,3 +191,23 @@ derived from the personalisation `b"Zcash_J_"`; see
 and the test that recomputes it from the personalisation tag. For exercise 2,
 the position-0 mixing is trivial (`0 * NULLIFIER_POSITION_GENERATOR = identity`,
 so the perturbed commitment equals the original commitment).
+
+<!-- Source links (zcash/sapling-crypto @ 0.7.0; jubjub via docs.rs) -->
+
+[cmu]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L117
+[Note::from_parts]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L77
+[Nullifier]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note/nullifier.rs#L15
+[rcm]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L34
+[Note::nf]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L112
+[mixing_pedersen_hash]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/spec.rs#L55
+[Note]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L46
+[prf_nf]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/spec.rs#L67
+[find_group_hash]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/constants.rs#L285
+[Rseed]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L25
+[cm_full_point]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L101
+[nf]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L112

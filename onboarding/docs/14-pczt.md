@@ -24,12 +24,12 @@ state transitions.
 
 ## 2. Definitions
 
-**Definition 14.1 (PCZT bundle).** A `pczt::Bundle` is a holder for "a Sapling
-bundle in some intermediate state of construction". It contains a vector of
-`pczt::Spend` and `pczt::Output` (both of which are different from the
-consensus-facing `SpendDescription` / `OutputDescription`), a running
-`value_sum`, a fixed anchor, and an optional binding signing key set by the IO
-Finalizer:
+**Definition 14.1 (PCZT bundle).** A `pczt::`[`Bundle`][Bundle] is a holder for
+"a Sapling bundle in some intermediate state of construction". It contains a
+vector of `pczt::`[`Spend`][Spend] and `pczt::`[`Output`][Output] (both of which
+are different from the consensus-facing [`SpendDescription`][SpendDescription] /
+[`OutputDescription`][OutputDescription]), a running `value_sum`, a fixed
+anchor, and an optional binding signing key set by the IO Finalizer:
 
 ```rust reference title="src/pczt.rs (Bundle)"
 https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt.rs#L46-L93
@@ -53,7 +53,7 @@ each with a dedicated module under `src/pczt/`:
 | Role                  | Module                                                                                           | Responsibility                                                             |
 | --------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
 | Creator               | (constructed manually)                                                                           | Initialise the empty `pczt::Bundle`.                                       |
-| Constructor           | (caller code, often the builder via `build_for_pczt`)                                            | Add spends and outputs.                                                    |
+| Constructor           | (caller code, often the builder via [`build_for_pczt`][build_for_pczt])                          | Add spends and outputs.                                                    |
 | Updater               | [`updater.rs`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt/updater.rs)           | Fill in missing fields, e.g. the proof generation key, the merkle witness. |
 | IO Finalizer          | [`io_finalizer.rs`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt/io_finalizer.rs) | Compute `bsk` from all `rcv`s, redact them.                                |
 | Prover                | [`prover.rs`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt/prover.rs)             | Create the Groth16 proofs.                                                 |
@@ -63,9 +63,10 @@ each with a dedicated module under `src/pczt/`:
 | Transaction Extractor | [`tx_extractor.rs`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt/tx_extractor.rs) | Produce the final `bundle::Bundle<Authorized, V>`.                         |
 
 Each actor has its own error type, prefixed with the actor's role:
-`UpdaterError`, `IoFinalizerError`, `ProverError`, `SignerError`,
-`TxExtractorError`, plus `ParseError` and `VerifyError` for the parsing /
-verification surfaces.
+[`UpdaterError`][UpdaterError], [`IoFinalizerError`][IoFinalizerError],
+[`ProverError`][ProverError], [`SignerError`][SignerError],
+[`TxExtractorError`][TxExtractorError], plus [`ParseError`][ParseError] and
+[`VerifyError`][VerifyError] for the parsing / verification surfaces.
 
 **Invariant 14.4 (no actor sees more than it needs).** The PCZT protocol is
 designed so that a Signer that holds the `ask` does not need to see the `rseed`
@@ -76,9 +77,9 @@ is held until the Prover finishes, then can be redacted. The mechanism is the
 per-field `Option<T>` plus an explicit "redact" step.
 
 **Invariant 14.5 (PCZT requires ZIP-212).** `Builder::build_for_pczt` rejects
-bundles configured with `Zip212Enforcement::Off` because PCZT outputs must be
-deterministically derived from their seeds (or the Prover-Signer split cannot
-work).
+bundles configured with [`Zip212Enforcement`][Zip212Enforcement]`::Off` because
+PCZT outputs must be deterministically derived from their seeds (or the
+Prover-Signer split cannot work).
 
 ```rust reference title="src/builder.rs (build_for_pczt requires ZIP-212)"
 https://github.com/zcash/sapling-crypto/blob/0.7.0/src/builder.rs#L120-L143
@@ -121,7 +122,8 @@ https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt/io_finalizer.rs
 ### 3.4 The transaction extractor
 
 Once all proofs and signatures are filled in, the extractor converts a
-`pczt::Bundle` into a consensus-facing `Bundle<Authorized, V>`:
+`pczt::`[`Bundle`][Bundle] into a consensus-facing
+`Bundle<`[`Authorized`][Authorized]`, V>`:
 
 ```rust reference title="src/pczt/tx_extractor.rs"
 https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt/tx_extractor.rs
@@ -135,8 +137,9 @@ after extraction). This is one of the few behavioural changes between 0.6 and
 
 ## 4. Failure modes
 
-- **PcztRequiresZip212.** Trying to build a PCZT with `Zip212Enforcement::Off`
-  returns `Error::PcztRequiresZip212`. Caught by:
+- **PcztRequiresZip212.** Trying to build a PCZT with
+  [`Zip212Enforcement`][Zip212Enforcement]`::Off` returns
+  [`Error`][Error]`::PcztRequiresZip212`. Caught by:
   [`Builder::build_for_pczt`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/builder.rs#L136-L140).
 - **Signer rejects PCZTs with `dummy_ask` set.** The `dummy_ask` field is set by
   the constructor for dummy spends; once the IO Finalizer has used it, it is
@@ -144,9 +147,9 @@ after extraction). This is one of the few behavioural changes between 0.6 and
   unfinalized bundle. Caught by:
   [the Signer rule](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt/signer.rs)
   (search for `dummy_ask` rejection).
-- **ProverError::MissingProofGenerationKey.** The Prover needs the
-  proof-generation key. If the Updater did not fill it in before the Prover ran,
-  the Prover errors. Caught by: the
+- **[`ProverError`][ProverError]`::MissingProofGenerationKey`.** The Prover
+  needs the proof-generation key. If the Updater did not fill it in before the
+  Prover ran, the Prover errors. Caught by: the
   [`pczt::ProverError` variants](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt/prover.rs).
 
 ## 5. Spec pointers
@@ -163,18 +166,49 @@ after extraction). This is one of the few behavioural changes between 0.6 and
 ## 6. Exercises
 
 1. **Walk one lifecycle.** Construct an empty PCZT bundle. Add a single spend
-   via the builder's `build_for_pczt`. Run the IO Finalizer. Confirm the `rcv`
-   fields are now `None` and the bundle's `bsk` is `Some(_)`.
+   via the builder's [`build_for_pczt`][build_for_pczt]. Run the IO Finalizer.
+   Confirm the `rcv` fields are now `None` and the bundle's `bsk` is `Some(_)`.
 2. **Identify a missing-field error.** Try running the Prover without first
    running the Updater to populate the proof generation key. Confirm the error
    variant returned and locate it in
    [`pczt/prover.rs`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt/prover.rs).
-3. **Trace a redaction.** Pick the `recipient` field on `pczt::Spend`. Find
-   every actor that sets it, reads it, or clears it. Reproduce the redaction
-   order in prose (~3 sentences).
+3. **Trace a redaction.** Pick the `recipient` field on
+   `pczt::`[`Spend`][Spend]. Find every actor that sets it, reads it, or clears
+   it. Reproduce the redaction order in prose (~3 sentences).
 
 **Answers in the code.** For exercise 1, the IO Finalizer's "compress and
 redact" pass is the body of
 [`io_finalizer.rs`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt/io_finalizer.rs).
 For exercise 3, the `recipient` field is set by the Constructor in
 [`builder.rs::into_pczt`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/builder.rs#L325-L355).
+
+<!-- Source links (zcash/sapling-crypto @ 0.7.0; jubjub via docs.rs) -->
+
+[Bundle]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt.rs#L54
+[Spend]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt.rs#L103
+[Output]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt.rs#L199
+[SpendDescription]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/bundle.rs#L215
+[OutputDescription]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/bundle.rs#L333
+[build_for_pczt]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/builder.rs#L690
+[UpdaterError]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt/updater.rs#L108
+[IoFinalizerError]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt/io_finalizer.rs#L85
+[ProverError]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt/prover.rs#L92
+[SignerError]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt/signer.rs#L55
+[TxExtractorError]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt/tx_extractor.rs#L118
+[ParseError]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt/parse.rs#L268
+[VerifyError]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pczt/verify.rs#L164
+[Zip212Enforcement]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L63
+[Authorized]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/bundle.rs#L42
+[Error]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/builder.rs#L122

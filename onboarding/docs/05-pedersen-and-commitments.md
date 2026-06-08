@@ -18,9 +18,10 @@ chapter and one extra component: the coordinate extractor that maps a Jubjub
 point to a single $\mathbb{F}_q$ field element.
 
 By the end you should be able to walk through the path note plaintext $\to$
-`NoteCommitment` (a Jubjub point) $\to$ `ExtractedNoteCommitment` (a single
-field element, called `cmu`) $\to$ Merkle leaf, and identify which file holds
-each transformation.
+[`NoteCommitment`][NoteCommitment] (a Jubjub point) $\to$
+[`ExtractedNoteCommitment`][ExtractedNoteCommitment] (a single field element,
+called [`cmu`][cmu]) $\to$ Merkle leaf, and identify which file holds each
+transformation.
 
 ## 2. Definitions
 
@@ -82,8 +83,8 @@ via the `bls12_381::Scalar::from_repr` check.
 
 ### 3.1 The internals
 
-The full implementation of `NoteCommitment::derive` and
-`ExtractedNoteCommitment` is one short file:
+The full implementation of [`NoteCommitment`][NoteCommitment]`::derive` and
+[`ExtractedNoteCommitment`][ExtractedNoteCommitment] is one short file:
 
 ```rust reference title="src/note/commitment.rs"
 https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note/commitment.rs
@@ -137,8 +138,9 @@ The `From<NoteCommitment> for ExtractedNoteCommitment` impl wires this in:
 https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note/commitment.rs#L86-L96
 ```
 
-`extract_p` is exactly one operation on the affine form: take the u-coordinate.
-The comment on line 161 documents the injectivity fact from Lemma 5.4.
+[`extract_p`][extract_p] is exactly one operation on the affine form: take the
+u-coordinate. The comment on line 161 documents the injectivity fact from Lemma
+5.4.
 
 ### 3.4 The Note type
 
@@ -150,35 +152,38 @@ https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L100-L120
 
 Three observations:
 
-1. The note exposes `cmu()` for "give me the Merkle leaf" and `cm_full_point()`
-   (private) for "give me the Jubjub point that feeds into the nullifier".
-2. `Note::eq` is defined as equality of `cmu`
+1. The note exposes [`cmu`][cmu]`()` for "give me the Merkle leaf" and
+   [`cm_full_point`][cm_full_point]`()` (private) for "give me the Jubjub point
+   that feeds into the nullifier".
+2. [`Note::eq`][Note::eq] is defined as equality of `cmu`
    ([source line 56-60](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L55-L62)).
    This is canonical: two notes with the same commitment are by definition the
    same note (even if their `rseed` differs as long as `rcm` matches).
-3. The `Nullifier` derivation also consumes `cm_full_point()`; see
+3. The [`Nullifier`][Nullifier] derivation also consumes `cm_full_point()`; see
    [Notes, commitments, nullifiers](./notes-and-nullifiers).
 
 ## 4. Failure modes
 
 - **Using `cm_full_point` where the protocol expects `cmu`.** The Merkle tree
-  stores `cmu`, not the full point. Confusing them produces a tree where the
-  verifier cannot reconstruct the leaf from the witness. Caught by: the type
-  system. `cm_full_point` is not public (it is private to `note.rs`); only
-  `ExtractedNoteCommitment` escapes.
+  stores [`cmu`][cmu], not the full point. Confusing them produces a tree where
+  the verifier cannot reconstruct the leaf from the witness. Caught by: the type
+  system. [`cm_full_point`][cm_full_point] is not public (it is private to
+  `note.rs`); only `ExtractedNoteCommitment` escapes.
 - **A non-canonical `cmu` encoding.** A byte buffer that decodes to a value
   above the field modulus is silently rejected by
-  `ExtractedNoteCommitment::from_bytes`. If a wire-format parser forgets to call
-  this and instead does `bls12_381::Scalar::from_bytes`, the canonicality
-  consensus rule is bypassed. Caught by: the type system;
-  `ExtractedNoteCommitment::from_bytes` is the only public constructor from
-  bytes.
+  [`ExtractedNoteCommitment::from_bytes`][ExtractedNoteCommitment::from_bytes].
+  If a wire-format parser forgets to call this and instead does
+  `bls12_381::Scalar::from_bytes`, the canonicality consensus rule is bypassed.
+  Caught by: the type system; `ExtractedNoteCommitment::from_bytes` is the only
+  public constructor from bytes.
 - **Forgetting the windowed-Pedersen randomization step.** A bare Pedersen hash
   is not a hiding commitment; the randomization by `rcm` makes it one. If a
-  refactor stripped the `[r] * NOTE_COMMITMENT_RANDOMNESS_GENERATOR` term, two
-  notes with identical $(v, \mathsf{d}, \mathsf{pk_d})$ would commit to the same
-  value, and an observer who knows the bit-string could trivially correlate them
-  on the chain. Caught by: nothing automatic in this workspace; the
+  refactor stripped the `[r] *`
+  [`NOTE_COMMITMENT_RANDOMNESS_GENERATOR`][NOTE_COMMITMENT_RANDOMNESS_GENERATOR]
+  term, two notes with identical $(v, \mathsf{d}, \mathsf{pk_d})$ would commit
+  to the same value, and an observer who knows the bit-string could trivially
+  correlate them on the chain. Caught by: nothing automatic in this workspace;
+  the
   [Spec §5.4.8.2 invariant](https://zips.z.cash/protocol/protocol.pdf#concretewindowedcommit)
   is enforced by code review.
 
@@ -226,3 +231,21 @@ commitments; you will want `arb_note` instead. For exercise 3: `cmu` is
 canonical (only the unique 32-byte encoding of each field element is accepted),
 while `cv` is not-small-order (any encoding decoding to a small-order point is
 rejected, regardless of canonicality).
+
+<!-- Source links (zcash/sapling-crypto @ 0.7.0; jubjub via docs.rs) -->
+
+[NoteCommitment]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note/commitment.rs#L19
+[ExtractedNoteCommitment]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note/commitment.rs#L63
+[ExtractedNoteCommitment::from_bytes]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note/commitment.rs#L72
+[cmu]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L117
+[cm_full_point]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L101
+[extract_p]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/spec.rs#L159
+[Note::eq]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L56
+[Nullifier]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note/nullifier.rs#L15
+[NOTE_COMMITMENT_RANDOMNESS_GENERATOR]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/constants.rs#L63

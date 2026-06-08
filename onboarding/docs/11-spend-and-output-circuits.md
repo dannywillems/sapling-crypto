@@ -166,10 +166,11 @@ Section-by-section reading:
 
 ### 4.1 Witnessing `ak` and proving `rk = ak + [ar] G_{sk}`
 
-Lines 157-182. The prover witnesses `ak` as an Edwards point (the `witness`
-gadget enforces "on the curve"). The `assert_not_small_order` call on line 166
-performs three doublings and checks $u \neq 0$; this rules out the eight
-small-order points on the cofactor-8 Jubjub curve. Then
+Lines 157-182. The prover witnesses `ak` as an Edwards point (the
+[`witness`][witness] gadget enforces "on the curve"). The
+[`assert_not_small_order`][assert_not_small_order] call on line 166 performs
+three doublings and checks $u \neq 0$; this rules out the eight small-order
+points on the cofactor-8 Jubjub curve. Then
 `rk = ak + [ar] * SPENDING_KEY_GENERATOR` is constructed and exposed as a public
 input.
 
@@ -185,8 +186,8 @@ $r_J$ would do, and the relation between $nk$ and $ak$ is still pinned down.
 
 Lines 207-235. `ivk_preimage` is built up from `repr(ak) || repr(nk)` (each
 `repr` is 256 bits). The BLAKE2s output is truncated to 252 bits
-(`jubjub::Fr::CAPACITY`), matching the out-of-circuit `crh_ivk` function which
-clears the top 5 bits.
+([`jubjub::Fr`][jubjub::Fr]`::CAPACITY`), matching the out-of-circuit
+[`crh_ivk`][crh_ivk] function which clears the top 5 bits.
 
 ### 4.4 Computing `pk_d = g_d^{ivk}` and the note hash
 
@@ -243,7 +244,8 @@ The Edwards-point gadget library and the in-circuit Pedersen hash are in
 [`src/circuit/ecc.rs`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/circuit/ecc.rs)
 and
 [`src/circuit/pedersen_hash.rs`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/circuit/pedersen_hash.rs).
-The `fixed_base_multiplication` function is the workhorse:
+The [`fixed_base_multiplication`][fixed_base_multiplication] function is the
+workhorse:
 
 ```rust reference title="src/circuit/ecc.rs (fixed_base_multiplication)"
 https://github.com/zcash/sapling-crypto/blob/0.7.0/src/circuit/ecc.rs#L26-L74
@@ -323,8 +325,24 @@ in depth" of having both a count and a hash.
   [`bellman` crate's groth16 module](https://docs.rs/bellman/latest/bellman/groth16/)
   is the proof-system implementation underneath. The
   [`Circuit` trait](https://docs.rs/bellman/latest/bellman/trait.Circuit.html)
-  is what `Spend::synthesize` and `Output::synthesize` implement.
+  is what [`Spend::synthesize`][Spend::synthesize] and
+  [`Output::synthesize`][Output::synthesize] implement.
 - For the proof system's verifier internals, read the
   [`groth16::verify_proof`](https://docs.rs/bellman/latest/bellman/groth16/fn.verify_proof.html)
   source; it is the function called by
   [`SaplingVerificationContext::check_spend`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/verifier/single.rs#L46-L52).
+
+<!-- Source links (zcash/sapling-crypto @ 0.7.0; jubjub via docs.rs) -->
+
+[witness]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/circuit/ecc.rs#L132
+[assert_not_small_order]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/circuit/ecc.rs#L86
+[crh_ivk]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/spec.rs#L25
+[fixed_base_multiplication]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/circuit/ecc.rs#L28
+[Spend::synthesize]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/circuit.rs#L153
+[Output::synthesize]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/circuit.rs#L153
+[jubjub::Fr]: https://docs.rs/jubjub/latest/jubjub/struct.Fr.html

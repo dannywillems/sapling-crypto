@@ -71,8 +71,9 @@ to the receiver's ivk.
 payment address. Each diversifier yields
 $\mathsf{g_d} = \mathsf{DiversifyHash}(\mathsf{d}) \in \mathbb{J}^{(r)}
 \cup \{\bot\}$;
-about 50% of diversifiers fail (`g_d = None`). The **diversified transmission
-key** is $\mathsf{pk_d} = [\mathsf{ivk}] \cdot \mathsf{g_d}$, computed by
+about 50% of diversifiers fail ([`g_d`][g_d]` = None`). The **diversified
+transmission key** is $\mathsf{pk_d} = [\mathsf{ivk}] \cdot \mathsf{g_d}$,
+computed by
 [`DiversifiedTransmissionKey::derive`][DiversifiedTransmissionKey::derive]. The
 payment address $(\mathsf{d}, \mathsf{pk_d})$ is a
 [`PaymentAddress`][PaymentAddress].
@@ -108,7 +109,8 @@ unrecoverable seed.
 $\mathbb{J}^{(r)}$ and not the identity. The deserializer rejects
 non-prime-order points:
 [`SpendValidatingKey::from_bytes`][SpendValidatingKey::from_bytes] uses
-`jubjub::SubgroupPoint::from_bytes` and an explicit `!p.is_identity()` check.
+[`jubjub::SubgroupPoint`][jubjub::SubgroupPoint]`::from_bytes` and an explicit
+`!p.is_identity()` check.
 
 ## 3. The code
 
@@ -194,18 +196,19 @@ tried per address.
   review.
 - **Trying to derive a non-hardened child.** ZIP 32 for Sapling forbids
   non-hardened derivation. The [`KeyIndex::new`][KeyIndex::new] helper rejects
-  this; trying to derive yields `DecodingError::UnsupportedChildIndex`. Caught
-  by: that error variant and the
+  this; trying to derive yields
+  [`DecodingError`][DecodingError]`::UnsupportedChildIndex`. Caught by: that
+  error variant and the
   [unit tests in `zip32.rs`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/zip32.rs#L1500).
-- **`pk_d = identity`.** If `ivk = 0` (or the diversifier produces an `g_d` that
-  happens to multiply to the identity), the resulting `pk_d` is the identity and
-  there is no recipient. The
+- **`pk_d = identity`.** If [`ivk`][ivk]` = 0` (or the diversifier produces an
+  [`g_d`][g_d] that happens to multiply to the identity), the resulting
+  [`pk_d`][pk_d] is the identity and there is no recipient. The
   [`DiversifiedTransmissionKey`][DiversifiedTransmissionKey] constructors reject
   this:
   [`PaymentAddress::from_parts_unchecked`][PaymentAddress::from_parts_unchecked]
-  checks `is_identity` and returns `None`. Caught by: that check. See also
-  [issue #168](https://github.com/zcash/sapling-crypto/issues/168) for the
-  related "make `ivk = 0` unrepresentable" refactor.
+  checks [`is_identity`][is_identity] and returns `None`. Caught by: that check.
+  See also [issue #168](https://github.com/zcash/sapling-crypto/issues/168) for
+  the related "make `ivk = 0` unrepresentable" refactor.
 - **Lossy "prepared" form drift.**
   [`PreparedIncomingViewingKey`][PreparedIncomingViewingKey] caches a
   `WnafScalar`; if [`SaplingIvk`][SaplingIvk] changes its scalar encoding but
@@ -307,3 +310,12 @@ buffer but only some of those buffers represent valid Sapling diversifiers.
   https://github.com/zcash/sapling-crypto/blob/0.7.0/src/zip32.rs#L658
 [KeyIndex::new]:
   https://github.com/zcash/sapling-crypto/blob/0.7.0/src/zip32.rs#L242-L252
+[g_d]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/keys.rs#L491
+[jubjub::SubgroupPoint]:
+  https://docs.rs/jubjub/latest/jubjub/struct.SubgroupPoint.html
+[DecodingError]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/keys.rs#L36
+[ivk]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/keys.rs#L360
+[pk_d]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/address.rs#L88
+[is_identity]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/keys.rs#L531

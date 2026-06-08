@@ -112,9 +112,12 @@ value.
 
 `value.rs` exposes three types:
 
-- `NoteValue`: a transparent `u64` newtype with a `ZERO` constant.
-- `ValueCommitTrapdoor`: a wrapper around `jubjub::Scalar`.
-- `ValueCommitment`: a wrapper around `jubjub::ExtendedPoint`.
+- [`NoteValue`][NoteValue]: a transparent `u64` newtype with a [`ZERO`][ZERO]
+  constant.
+- [`ValueCommitTrapdoor`][ValueCommitTrapdoor]: a wrapper around
+  [`jubjub::Scalar`][jubjub::Scalar].
+- [`ValueCommitment`][ValueCommitment]: a wrapper around
+  [`jubjub::ExtendedPoint`][jubjub::ExtendedPoint].
 
 ```rust reference title="src/value.rs (NoteValue)"
 https://github.com/zcash/sapling-crypto/blob/0.7.0/src/value.rs#L52-L82
@@ -173,21 +176,24 @@ generators or break a sum direction, this test fails.
   [`bsk_consistent_with_bvk`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/value.rs#L236-L266)
   proptest with high probability.
 - **Adding spends and outputs with the same sign.** If
-  `CommitmentSum::add_assign` were accidentally used in the output loop instead
-  of `sub_assign`, every output would inflate the binding sum by `+cv` instead
-  of `-cv`. Caught by: the same proptest.
+  [`CommitmentSum::add_assign`][CommitmentSum::add_assign] were accidentally
+  used in the output loop instead of [`sub_assign`][sub_assign], every output
+  would inflate the binding sum by `+cv` instead of `-cv`. Caught by: the same
+  proptest.
 - **A small-order `cv` slipping past deserialisation.** If a wire parser called
   `ValueCommitment(jubjub::ExtendedPoint::from_bytes(b).unwrap())` instead of
-  `ValueCommitment::from_bytes_not_small_order(b)`, a small-order commitment
-  would be admitted, and an attacker could later exploit the cofactor 8 to claim
-  a spend of $v$ while committing to a different value. Caught by:
+  [`ValueCommitment::from_bytes_not_small_order`][ValueCommitment::from_bytes_not_small_order]`(b)`,
+  a small-order commitment would be admitted, and an attacker could later
+  exploit the cofactor 8 to claim a spend of $v$ while committing to a different
+  value. Caught by:
   [`SaplingVerificationContextInner::check_spend`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/verifier.rs#L33-L93)
   has the small-order check baked into the call sites; the comment on lines
   45-48 documents the assumption.
-- **Overflow in `vbalance`.** `ValueSum` is an `i128`, large enough to hold all
-  sums up to `n_spends + n_outputs <= 2^64`. Casting it to `i64` for `into_bvk`
-  can lose information; that is what `BalanceError::Overflow` and `try_into()`
-  guard against. Caught by: tests in `value/sums.rs` and `value.rs`.
+- **Overflow in `vbalance`.** [`ValueSum`][ValueSum] is an `i128`, large enough
+  to hold all sums up to `n_spends + n_outputs <= 2^64`. Casting it to `i64` for
+  [`into_bvk`][into_bvk] can lose information; that is what
+  [`BalanceError`][BalanceError]`::Overflow` and `try_into()` guard against.
+  Caught by: tests in `value/sums.rs` and `value.rs`.
 
 ## 5. Spec pointers
 
@@ -226,3 +232,27 @@ protocol uses `i64` for vbalance but limits the Sapling-transactable supply to
 $\le 2^{51}$ zatoshi; the concrete upper bound is therefore approximately
 $(2^{51}) \times C$ for a known constant $C$. See
 [Spec §4.13](https://zips.z.cash/protocol/protocol.pdf#saplingbalance).
+
+<!-- Source links (zcash/sapling-crypto @ 0.7.0; jubjub via docs.rs) -->
+
+[NoteValue]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/value.rs#L56
+[ZERO]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/value.rs#L60
+[ValueCommitTrapdoor]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/value.rs#L86
+[ValueCommitment]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/value.rs#L134
+[ValueCommitment::from_bytes_not_small_order]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/value.rs#L167
+[ValueSum]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/value/sums.rs#L43
+[CommitmentSum::add_assign]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/value/sums.rs#L142
+[sub_assign]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/value/sums.rs#L164
+[into_bvk]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/value/sums.rs#L188
+[BalanceError]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/value/sums.rs#L15
+[jubjub::Scalar]: https://docs.rs/jubjub/latest/jubjub/type.Scalar.html
+[jubjub::ExtendedPoint]:
+  https://docs.rs/jubjub/latest/jubjub/struct.ExtendedPoint.html

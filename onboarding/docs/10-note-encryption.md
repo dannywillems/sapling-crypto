@@ -74,8 +74,8 @@ note-plaintext versions are accepted at decryption time:
 https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L60-L67
 ```
 
-- `Off`: accept both v1 (pre-ZIP-212, `rcm` field) and v2 (ZIP-212, `rseed`
-  field). Used for pre-Canopy chains.
+- `Off`: accept both v1 (pre-ZIP-212, [`rcm`][rcm] field) and v2 (ZIP-212,
+  [`rseed`][rseed] field). Used for pre-Canopy chains.
 - `GracePeriod`: accept both versions; used during the transition blocks at
   Canopy activation.
 - `On`: accept only v2 plaintexts. Used on every mainnet block after the grace
@@ -104,28 +104,32 @@ https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L116-L
 
 The interesting methods downstream of that header:
 
-- `derive_esk`: pulls the ZIP-212 esk from the note (`None` for v1).
-- `ka_derive_public`: computes
+- [`derive_esk`][derive_esk]: pulls the ZIP-212 esk from the note (`None` for
+  v1).
+- [`ka_derive_public`][ka_derive_public]: computes
   $\mathsf{epk} = [\mathsf{esk}]
   \cdot \mathsf{g_d}$.
-- `ka_agree_enc` / `ka_agree_dec`: the two directions of the DH.
-- `kdf`: the BLAKE2b-32 with `KDF_SAPLING_PERSONALIZATION`.
+- [`ka_agree_enc`][ka_agree_enc] / [`ka_agree_dec`][ka_agree_dec]: the two
+  directions of the DH.
+- [`kdf`][kdf]: the BLAKE2b-32 with
+  [`KDF_SAPLING_PERSONALIZATION`][KDF_SAPLING_PERSONALIZATION].
 
 ### 3.2 ZIP-212 grace period handling
 
 The bulk of the rules live in the plaintext parser. Both versions of the
 plaintext format share the first byte (`0x01` or `0x02`), the next 11 bytes
 (diversifier), the next 8 bytes (value, little endian), and 32 bytes of
-randomness. After ZIP-212, that last 32 bytes is `rseed` (used to derive both
-`rcm` and `esk`); before, it is `rcm` directly:
+randomness. After ZIP-212, that last 32 bytes is [`rseed`][rseed] (used to
+derive both [`rcm`][rcm] and `esk`); before, it is `rcm` directly:
 
 ```rust reference title="src/note_encryption.rs (parse note plaintext)"
 https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L69-L114
 ```
 
-The version-validity gating at line 82 (`plaintext_version_is_valid`) is what
-enforces `Zip212Enforcement::On`: it returns `false` for v1 plaintexts when only
-v2 is accepted.
+The version-validity gating at line 82
+([`plaintext_version_is_valid`][plaintext_version_is_valid]) is what enforces
+[`Zip212Enforcement`][Zip212Enforcement]`::On`: it returns `false` for v1
+plaintexts when only v2 is accepted.
 
 ### 3.3 Trial decryption
 
@@ -136,8 +140,9 @@ functions:
 - `try_sapling_note_decryption(SaplingDomain, ivk, ShieldedOutput)`
 - `try_sapling_compact_note_decryption(SaplingDomain, ivk, ShieldedOutput)`
   (skips the memo, used in light client sync)
-- `try_sapling_output_recovery_with_ock` / `try_sapling_output_recovery` (the
-  sender's path, using ovk)
+- [`try_sapling_output_recovery_with_ock`][try_sapling_output_recovery_with_ock]
+  / [`try_sapling_output_recovery`][try_sapling_output_recovery] (the sender's
+  path, using ovk)
 
 ### 3.4 Memo bytes
 
@@ -149,12 +154,12 @@ responsibility, and changed signature in 0.5: see the
 ## 4. Failure modes
 
 - **ZIP-212 enforcement misconfigured.** A node that runs with
-  `Zip212Enforcement::Off` on a chain past the grace period will accept
-  pre-Canopy notes that should have been rejected; a node that runs with `On`
-  before the grace period activation will reject legitimate v1 notes. The crate
-  does not pick the mode itself; it is the caller's responsibility (typically
-  based on block height). Caught by: nothing automatic in this crate; the
-  configuration surface is in the caller (e.g. `zebrad`).
+  [`Zip212Enforcement`][Zip212Enforcement]`::Off` on a chain past the grace
+  period will accept pre-Canopy notes that should have been rejected; a node
+  that runs with `On` before the grace period activation will reject legitimate
+  v1 notes. The crate does not pick the mode itself; it is the caller's
+  responsibility (typically based on block height). Caught by: nothing automatic
+  in this crate; the configuration surface is in the caller (e.g. `zebrad`).
 - **`epk` decoded as a small-order point.** The deserializer for ephemeral keys
   rejects small-order points
   ([source](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/verifier.rs#L108-L110)).
@@ -191,21 +196,60 @@ responsibility, and changed signature in 0.5: see the
 
 1. **Decrypt a known test vector.** Open
    [`src/test_vectors/note_encryption.rs`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/test_vectors/note_encryption.rs)
-   and pick one. Construct the `SaplingDomain` with the right enforcement mode
-   and call `try_sapling_note_decryption`. Verify the returned `Note` matches
-   the vector. The existing
+   and pick one. Construct the [`SaplingDomain`][SaplingDomain] with the right
+   enforcement mode and call
+   [`try_sapling_note_decryption`][try_sapling_note_decryption]. Verify the
+   returned [`Note`][Note] matches the vector. The existing
    [`note_encryption.rs` tests](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L640-L1500)
    exercise this; pick one and run it in isolation.
 2. **Show the OVK separation.** Construct two outputs to the same address with
-   the same memo but different ovks. Confirm that the two `out_ciphertext` blobs
-   differ (because `ock` derives from `ovk`), while the `enc_ciphertext` blobs
-   also differ (because they have different fresh trapdoors).
-3. **Add a `Display` impl for `Zip212Enforcement`.** Useful when debugging an
-   ambiguous chain configuration. Lowercase `"off"`, `"grace_period"`, `"on"`.
-   Add a unit test that round-trips through `format!`.
+   the same memo but different ovks. Confirm that the two
+   [`out_ciphertext`][out_ciphertext] blobs differ (because `ock` derives from
+   `ovk`), while the [`enc_ciphertext`][enc_ciphertext] blobs also differ
+   (because they have different fresh trapdoors).
+3. **Add a `Display` impl for [`Zip212Enforcement`][Zip212Enforcement].** Useful
+   when debugging an ambiguous chain configuration. Lowercase `"off"`,
+   `"grace_period"`, `"on"`. Add a unit test that round-trips through `format!`.
 
 **Answers in the code.** For exercise 1, the test vectors are in the
-`test_vectors::note_encryption::make_test_vectors` helper. For exercise 2, the
+[`test_vectors::note_encryption::make_test_vectors`][make_test_vectors] helper.
+For exercise 2, the
 [`prf_ock`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L38-L58)
 function takes `ovk` as the first byte input, so two distinct `ovk`s give two
 distinct `ock`s with overwhelming probability.
+
+<!-- Source links (zcash/sapling-crypto @ 0.7.0; jubjub via docs.rs) -->
+
+[rcm]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L34
+[rseed]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L96
+[Note]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L46
+[derive_esk]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L147
+[ka_derive_public]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L159
+[ka_agree_enc]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L166
+[ka_agree_dec]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L173
+[kdf]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L183
+[KDF_SAPLING_PERSONALIZATION]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L32
+[plaintext_version_is_valid]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L399
+[Zip212Enforcement]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L63
+[SaplingDomain]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L116
+[try_sapling_note_decryption]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L407
+[try_sapling_output_recovery_with_ock]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L435
+[try_sapling_output_recovery]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L452
+[out_ciphertext]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/bundle.rs#L363
+[enc_ciphertext]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/bundle.rs#L358
+[make_test_vectors]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/test_vectors/note_encryption.rs#L24

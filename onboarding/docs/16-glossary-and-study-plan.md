@@ -32,13 +32,13 @@ Each entry links to the source file where the term is defined.
 | `bvk`                                                | Binding signature verification key, derived from value commitments and value balance.                                                                                                   | `value/sums.rs::CommitmentSum::into_bvk`      |
 | `cm`, `cm_full_point`                                | Note commitment as a Jubjub point. Private; lives in `note.rs`.                                                                                                                         | `note/commitment.rs`                          |
 | `cmu`                                                | Extracted note commitment (u-coordinate of `cm`). The Merkle leaf.                                                                                                                      | `note/commitment.rs::ExtractedNoteCommitment` |
-| `cv`                                                 | Value commitment, an element of `jubjub::ExtendedPoint`.                                                                                                                                | `value.rs::ValueCommitment`                   |
+| `cv`                                                 | Value commitment, an element of [`jubjub::ExtendedPoint`][jubjub::ExtendedPoint].                                                                                                       | `value.rs::ValueCommitment`                   |
 | `dk`                                                 | Diversifier key for ZIP-32 HD wallets.                                                                                                                                                  | `zip32.rs::DiversifierKey`                    |
 | `epk`                                                | Ephemeral public key in note encryption.                                                                                                                                                | `keys.rs::EphemeralPublicKey`                 |
-| `esk`                                                | Ephemeral secret key in note encryption. Post-ZIP-212, deterministically derived from `rseed`.                                                                                          | `keys.rs::EphemeralSecretKey`                 |
+| `esk`                                                | Ephemeral secret key in note encryption. Post-ZIP-212, deterministically derived from [`rseed`][rseed].                                                                                 | `keys.rs::EphemeralSecretKey`                 |
 | `FVK`                                                | Full viewing key.                                                                                                                                                                       | `keys.rs::FullViewingKey`                     |
 | `g_d`                                                | Diversified base point on Jubjub, $g_d = \mathsf{DiversifyHash}(d)$.                                                                                                                    | `keys.rs::Diversifier::g_d`                   |
-| `ivk`                                                | Incoming viewing key. The scalar by which `g_d` is multiplied to get `pk_d`.                                                                                                            | `keys.rs::SaplingIvk`                         |
+| `ivk`                                                | Incoming viewing key. The scalar by which [`g_d`][g_d] is multiplied to get [`pk_d`][pk_d].                                                                                             | `keys.rs::SaplingIvk`                         |
 | `KA`                                                 | Key agreement (Diffie-Hellman on Jubjub).                                                                                                                                               | `spec.rs::ka_sapling_*`                       |
 | `KDF`                                                | Key derivation function (BLAKE2b-32 with `Zcash_SaplingKDF`).                                                                                                                           | `keys.rs::SharedSecret::kdf_sapling`          |
 | `MPC`                                                | Multi-party computation; here the Sapling trusted-setup ceremony.                                                                                                                       | external                                      |
@@ -90,9 +90,9 @@ in `src/` is responsible for? If not, re-read chapter 1.
 6). Then compute one nullifier by hand (exercise 2 from chapter 8). Compare
 against the source.
 
-**Diagnostic.** Sketch the data dependency graph from `seed` to `Nullifier`.
-Identify every PRF / hash call on the path. Six is about right; if you count
-fewer, you missed one.
+**Diagnostic.** Sketch the data dependency graph from `seed` to
+[`Nullifier`][Nullifier]. Identify every PRF / hash call on the path. Six is
+about right; if you count fewer, you missed one.
 
 ### Week 3: value, encryption, and the circuit
 
@@ -176,3 +176,13 @@ are frozen):
    (`grep -r 'recieve\|seperate\|sucess' src/`). Open a PR fixing it. Include a
    CHANGELOG entry under `### Fixed`. This is the smallest possible non-noop PR;
    it tests your CI and PR workflow end-to-end.
+
+<!-- Source links (zcash/sapling-crypto @ 0.7.0; jubjub via docs.rs) -->
+
+[jubjub::ExtendedPoint]:
+  https://docs.rs/jubjub/latest/jubjub/struct.ExtendedPoint.html
+[rseed]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L96
+[g_d]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/keys.rs#L491
+[pk_d]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/address.rs#L88
+[Nullifier]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note/nullifier.rs#L15

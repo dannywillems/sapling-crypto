@@ -185,10 +185,12 @@ What the issue is asking for, concretely:
 https://github.com/zcash/sapling-crypto/blob/0.7.0/src/keys.rs#L160-L164
 ```
 
-The `From<&SpendAuthorizingKey> for SpendValidatingKey` impl makes a
-load-bearing cryptographic derivation look like a type coercion. Replacing it
-with an explicit method (e.g. `SpendValidatingKey::derive_from(&ask)`) makes
-downstream calls more greppable and matches the orchard crate's style.
+The
+`From<&`[`SpendAuthorizingKey`][SpendAuthorizingKey]`> for `[`SpendValidatingKey`][SpendValidatingKey]
+impl makes a load-bearing cryptographic derivation look like a type coercion.
+Replacing it with an explicit method (e.g.
+`SpendValidatingKey::derive_from(&ask)`) makes downstream calls more greppable
+and matches the orchard crate's style.
 
 A reasonable PR plan:
 
@@ -259,3 +261,10 @@ Groth16 test cycle). For exercise 2, the `println!` failure is caught by
 `clippy::print_stdout` (lint). For exercise 3, look at
 [PR #182](https://github.com/zcash/sapling-crypto/pull/182) as an example of a
 near-no-op merge.
+
+<!-- Source links (zcash/sapling-crypto @ 0.7.0; jubjub via docs.rs) -->
+
+[SpendAuthorizingKey]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/keys.rs#L73
+[SpendValidatingKey]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/keys.rs#L158

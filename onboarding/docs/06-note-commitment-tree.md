@@ -25,7 +25,8 @@ happens.
 ## 2. Definitions
 
 **Definition 6.1 (Sapling Merkle tree).** A binary, append-only Merkle tree of
-depth $D = 32$, whose leaves are `ExtractedNoteCommitment` values (elements of
+depth $D = 32$, whose leaves are
+[`ExtractedNoteCommitment`][ExtractedNoteCommitment] values (elements of
 $\mathbb{F}_q$). It holds up to $2^{32}$ leaves; in practice the position of a
 note in the tree is a `u64` that fits in 32 bits.
 
@@ -53,13 +54,14 @@ crate).
 **Definition 6.4 (uncommitted leaf).** The placeholder value for an empty leaf
 is the field element $1 \in \mathbb{F}_q$, declared as `UNCOMMITTED_SAPLING`
 ([source](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs#L22-L24)).
-Empty subtree roots are precomputed by repeated application of `Node::combine`
-with both children equal to the previous level's empty root.
+Empty subtree roots are precomputed by repeated application of
+[`Node::combine`][Node::combine] with both children equal to the previous
+level's empty root.
 
 **Invariant 6.5 (zero-value bypass).** A spend whose note value is zero is a
 **dummy spend** and is allowed to use any anchor, not necessarily one that
-contains its `cmu`. The circuit enforces this by making the anchor equality
-constraint quadratic in the value:
+contains its [`cmu`][cmu]. The circuit enforces this by making the anchor
+equality constraint quadratic in the value:
 $(\mathsf{cur} - \mathsf{rt}) \cdot \mathsf{value} = 0$
 ([source](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/circuit.rs#L386-L394)).
 If $\mathsf{value} = 0$, any $\mathsf{rt}$ satisfies the constraint; if
@@ -76,21 +78,23 @@ https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs
 
 Reading priorities in that file:
 
-- Lines 15-20: the tree depth (32) and the three type aliases (`CommitmentTree`,
-  `IncrementalWitness`, `MerklePath`).
+- Lines 15-20: the tree depth (32) and the three type aliases
+  ([`CommitmentTree`][CommitmentTree],
+  [`IncrementalWitness`][IncrementalWitness], [`MerklePath`][MerklePath]).
 - Lines 22-34: empty leaf and precomputed empty roots.
-- Lines 37-71: `merkle_hash` and `merkle_hash_field`. This is
-  `MerkleCRH^Sapling`. Note the explicit truncation to 255 bits on lines 62-67.
-- Lines 73-112: `Anchor`, the root wrapper.
-- Lines 114-172: `Node` and the `Hashable` impl that the `incrementalmerkletree`
-  crate consumes.
+- Lines 37-71: [`merkle_hash`][merkle_hash] and
+  [`merkle_hash_field`][merkle_hash_field]. This is `MerkleCRH^Sapling`. Note
+  the explicit truncation to 255 bits on lines 62-67.
+- Lines 73-112: [`Anchor`][Anchor], the root wrapper.
+- Lines 114-172: [`Node`][Node] and the `Hashable` impl that the
+  `incrementalmerkletree` crate consumes.
 
 ### 3.1 Why a separate Node type
 
-`Node` is a thin wrapper around `jubjub::Base = bls12_381::Scalar`. Wrapping the
-field element makes the trait implementations type-safe: `Hashable::combine`
-takes `&Node`, not `&Scalar`, so nothing else can be accidentally placed in the
-tree.
+[`Node`][Node] is a thin wrapper around
+[`jubjub::Base`][jubjub::Base]` = bls12_381::Scalar`. Wrapping the field element
+makes the trait implementations type-safe: `Hashable::combine` takes `&Node`,
+not `&Scalar`, so nothing else can be accidentally placed in the tree.
 
 ```rust reference title="src/tree.rs (Hashable impl)"
 https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs#L156-L172
@@ -104,7 +108,8 @@ The anchor type carries an extra constructor:
 https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs#L73-L112
 ```
 
-`Anchor::empty_tree()` returns the root of the all-empty tree at depth 32. The
+[`Anchor::empty_tree()`][Anchor::empty_tree] returns the root of the all-empty
+tree at depth 32. The
 [doc comment](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs#L89-L94)
 warns that this anchor cannot be used for ordinary spends (the consensus rules
 require an anchor that appears in the chain). It is used for coinbase bundles
@@ -123,8 +128,9 @@ https://github.com/zcash/sapling-crypto/blob/0.7.0/src/circuit.rs#L323-L398
 `auth_path` is `Vec<Option<(Scalar, bool)>>`: the element at depth $i$ is the
 sibling field element and the boolean "I am on the right". The
 `conditionally_reverse` gadget swaps left/right based on this bit. The Pedersen
-hash at line 369 is the in-circuit version of `merkle_hash_field`, called with
-`MerkleTree(i)` so the depth $i$ is folded into the personalisation prefix.
+hash at line 369 is the in-circuit version of
+[`merkle_hash_field`][merkle_hash_field], called with `MerkleTree(i)` so the
+depth $i$ is folded into the personalisation prefix.
 
 ## 4. Failure modes
 
@@ -135,20 +141,21 @@ hash at line 369 is the in-circuit version of `merkle_hash_field`, called with
   by: the test vectors in
   [`pedersen_hash::test::test_pedersen_hash_points`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pedersen_hash.rs#L136-L157)
   exercise specific `MerkleTree(d)` personalisations.
-- **Truncation off-by-one.** `merkle_hash_field` truncates each child to
-  `bls12_381::Scalar::NUM_BITS = 255` bits before feeding into the Pedersen
-  hash. If a refactor took 256 bits, the high bit would be inconsistent with the
-  in-circuit version (which can only feed `bls12_381::Scalar::CAPACITY = 254`
-  bits without proving the reduction is canonical). Caught by: the
+- **Truncation off-by-one.** [`merkle_hash_field`][merkle_hash_field] truncates
+  each child to `bls12_381::Scalar::NUM_BITS = 255` bits before feeding into the
+  Pedersen hash. If a refactor took 256 bits, the high bit would be inconsistent
+  with the in-circuit version (which can only feed
+  `bls12_381::Scalar::CAPACITY = 254` bits without proving the reduction is
+  canonical). Caught by: the
   [circuit constraint count assertion](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/circuit.rs#L750-L756)
   (changing the bit count changes the constraint count, which would fail the
   explicit assertion).
 - **Empty-tree anchor used in a real spend.** A spend with a non-zero value and
-  `Anchor::empty_tree()` cannot satisfy the circuit equation
-  $(\mathsf{cur} - \mathsf{rt}) \cdot
-  \mathsf{value} = 0$ because the path of
-  the note cannot lead to the all-empty root. Caught by: the circuit constraint
-  at
+  [`Anchor::empty_tree()`][Anchor::empty_tree] cannot satisfy the circuit
+  equation $(\mathsf{cur} - \mathsf{rt}) \cdot
+  \mathsf{value} = 0$ because the
+  path of the note cannot lead to the all-empty root. Caught by: the circuit
+  constraint at
   [`src/circuit.rs#L386-L394`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/circuit.rs#L386-L394).
 
 ## 5. Spec pointers
@@ -166,9 +173,10 @@ hash at line 369 is the in-circuit version of `merkle_hash_field`, called with
 1. **Compute the empty-tree anchor.** Read the
    [`empty_roots`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs#L27-L34)
    function. By hand, compute the depth-0 empty root: it is
-   `Node::empty_leaf() = Node(1)`. Now compute the depth-1 empty root: it is
-   `Node::combine(0, Node(1), Node(1))`. Carry on for three more levels and
-   verify against a Rust program that calls `Anchor::empty_tree()`.
+   [`Node::empty_leaf()`][Node::empty_leaf]` = Node(1)`. Now compute the depth-1
+   empty root: it is [`Node::combine`][Node::combine]`(0, Node(1), Node(1))`.
+   Carry on for three more levels and verify against a Rust program that calls
+   [`Anchor::empty_tree()`][Anchor::empty_tree].
 2. **Find the maximum path length.** What is the longest authentication path the
    circuit accepts? Look at
    [`auth_path.len()`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/circuit.rs#L67-L74)
@@ -177,7 +185,7 @@ hash at line 369 is the in-circuit version of `merkle_hash_field`, called with
    What happens if you pass a 33-element vector? Modify the test to do so and
    run it.
 3. **Add a debug print for the tree depth at compile time.** Where is
-   `NOTE_COMMITMENT_TREE_DEPTH` declared? Add a
+   [`NOTE_COMMITMENT_TREE_DEPTH`][NOTE_COMMITMENT_TREE_DEPTH] declared? Add a
    `const _: () = assert!(NOTE_COMMITMENT_TREE_DEPTH == 32);` somewhere in the
    crate to make the depth invariant a compile-time check rather than a runtime
    parameter.
@@ -190,3 +198,29 @@ and the `cs.num_constraints() == 98777` assertion in
 [`circuit::test_input_circuit_with_bls12_381`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/circuit.rs#L750-L756)
 will fail. For exercise 3, the const assertion belongs near the
 [declaration](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs#L15).
+
+<!-- Source links (zcash/sapling-crypto @ 0.7.0; jubjub via docs.rs) -->
+
+[ExtractedNoteCommitment]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note/commitment.rs#L63
+[Node::combine]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs#L161
+[cmu]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note.rs#L117
+[CommitmentTree]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs#L16
+[IncrementalWitness]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs#L18
+[MerklePath]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs#L20
+[merkle_hash]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs#L37
+[merkle_hash_field]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs#L41
+[Anchor]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs#L75
+[Node]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs#L116
+[Anchor::empty_tree]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs#L95
+[Node::empty_leaf]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs#L157
+[NOTE_COMMITMENT_TREE_DEPTH]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/tree.rs#L15
+[jubjub::Base]: https://docs.rs/jubjub/latest/jubjub/type.Base.html

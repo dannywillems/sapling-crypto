@@ -12,10 +12,11 @@ description:
 
 Sapling's note commitment, value commitment, and Merkle tree all bottom out in
 two primitives: a hash-to-curve operation called the **group hash**
-(`group_hash` in code) and a **Pedersen hash** built on top of seven fixed
-generators. Both are fully defined inside this crate; both have been the subject
-of side-channel and collision considerations that you should know before you
-touch `pedersen_hash.rs`, `constants.rs`, or `circuit/pedersen_hash.rs`.
+([`group_hash`][group_hash] in code) and a **Pedersen hash** built on top of
+seven fixed generators. Both are fully defined inside this crate; both have been
+the subject of side-channel and collision considerations that you should know
+before you touch `pedersen_hash.rs`, `constants.rs`, or
+`circuit/pedersen_hash.rs`.
 
 By the end you should know exactly which file holds which generator, what each
 personalisation tag is for, and why the in-circuit and out-of-circuit Pedersen
@@ -39,7 +40,7 @@ $$
 
 returning a `Option<SubgroupPoint>`. The function returns `None` when the
 BLAKE2s output does not decode to a valid Jubjub point, or when clearing the
-cofactor produces the identity. The 64-byte `GH_FIRST_BLOCK`
+cofactor produces the identity. The 64-byte [`GH_FIRST_BLOCK`][GH_FIRST_BLOCK]
 ([source](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/constants.rs#L13-L14))
 is a deliberately arbitrary ASCII hex string that domain-separates group-hash
 inputs from anything else BLAKE2s might be used for.
@@ -48,8 +49,8 @@ inputs from anything else BLAKE2s might be used for.
 $G_0, \ldots, G_6 \in \mathbb{J}^{(r)}$ defined in
 [`PEDERSEN_HASH_GENERATORS`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/constants.rs#L146-L231),
 a personalisation prefix $p \in \{0,1\}^6$ (six bits from
-`Personalization::get_bits`), and a bit-string $m \in \{0,1\}^*$, the Sapling
-Pedersen hash is
+[`Personalization::get_bits`][Personalization::get_bits]), and a bit-string
+$m \in \{0,1\}^*$, the Sapling Pedersen hash is
 
 $$
 \mathsf{PedersenHash}(p, m) = \sum_{i=0}^{\lceil L / S \rceil - 1}
@@ -99,8 +100,8 @@ https://github.com/zcash/sapling-crypto/blob/0.7.0/src/group_hash.rs
 Three things to note:
 
 - The personalisation must be exactly 8 bytes (line 16).
-- The 64-byte `GH_FIRST_BLOCK` is constant across all calls (line 25); only the
-  tag varies.
+- The 64-byte [`GH_FIRST_BLOCK`][GH_FIRST_BLOCK] is constant across all calls
+  (line 25); only the tag varies.
 - The cofactor is cleared on line 33. This is the step that turns a potentially
   small-order point into a guaranteed prime-order element (or the identity,
   which is then rejected on line 35).
@@ -124,8 +125,9 @@ Two structural facts to internalize:
    bit. This matters in the circuit, where the negation has to be expressed as a
    constraint, not a conditional branch.
 2. The outer loop iterates over segments of 189 bits each
-   (`PEDERSEN_HASH_CHUNKS_PER_GENERATOR = 63` chunks of 3 bits). An input longer
-   than $7 \times 189 = 1323$ bits would exhaust the generator pool and panic on
+   ([`PEDERSEN_HASH_CHUNKS_PER_GENERATOR`][PEDERSEN_HASH_CHUNKS_PER_GENERATOR]
+   `= 63` chunks of 3 bits). An input longer than $7 \times 189 = 1323$ bits
+   would exhaust the generator pool and panic on
    `generators.next().expect(...)`. The note commitment input is 576 bits (64
    value + 256 g_d + 256 pk_d), well under the cap.
 
@@ -229,3 +231,14 @@ implementation (e.g. a C++ port).
 For exercise 2, the first 4 bits encode prefix `0b111111` (NoteCommitment)
 followed by your 4 bits, but the first segment only consumes the first 3 bits of
 the combined string and ignores the rest; chase through the code carefully.
+
+<!-- Source links (zcash/sapling-crypto @ 0.7.0; jubjub via docs.rs) -->
+
+[group_hash]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/group_hash.rs#L15
+[GH_FIRST_BLOCK]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/constants.rs#L13
+[Personalization::get_bits]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pedersen_hash.rs#L20
+[PEDERSEN_HASH_CHUNKS_PER_GENERATOR]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/constants.rs#L234
