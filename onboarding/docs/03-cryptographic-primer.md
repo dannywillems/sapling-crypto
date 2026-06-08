@@ -47,32 +47,36 @@ $$
 in $\mathbb{F}_r$. The full Jubjub curve has cofactor 8; its prime-order
 subgroup has order $r_{\mathbb{J}}$, a 252-bit prime. We write $\mathbb{J}$ for
 the full curve and $\mathbb{J}^{(r)}$ for its prime-order subgroup. In code:
-`jubjub::ExtendedPoint` is $\mathbb{J}$, `jubjub::SubgroupPoint` is
-$\mathbb{J}^{(r)}$, `jubjub::Base` is $\mathbb{F}_r$, `jubjub::Scalar` (a.k.a.
-`jubjub::Fr`) is $\mathbb{F}_{r_{\mathbb{J}}}$.
+[`jubjub::ExtendedPoint`][jubjub::ExtendedPoint] is $\mathbb{J}$,
+[`jubjub::SubgroupPoint`][jubjub::SubgroupPoint] is $\mathbb{J}^{(r)}$,
+[`jubjub::Base`][jubjub::Base] is $\mathbb{F}_r$,
+[`jubjub::Scalar`][jubjub::Scalar] (a.k.a. [`jubjub::Fr`][jubjub::Fr]) is
+$\mathbb{F}_{r_{\mathbb{J}}}$.
 
 **Lemma 3.3 (the embedding).** Because Jubjub's base field equals BLS12-381's
 scalar field, Jubjub point arithmetic can be carried out inside a Groth16
 circuit over BLS12-381 without field-emulation overhead. This is the
 load-bearing fact that makes the Sapling circuit feasible. Without this
 matching, the in-circuit Pedersen hash would cost an order of magnitude more
-constraints. Citation: Hopwood et al., Zcash Protocol Specification, §5.4.9.
+constraints. Citation: Hopwood et al.,
+[Zcash Protocol Specification, §5.4.9.3 (Jubjub)](https://zips.z.cash/protocol/protocol.pdf#jubjub).
 
 **Invariant 3.4 (subgroup discipline).** Sapling primitives operate on
 $\mathbb{J}^{(r)}$, not on the full curve $\mathbb{J}$. The implementation
 enforces this both in code (most types are `jubjub::SubgroupPoint`) and in the
-circuit (`EdwardsPoint::assert_not_small_order` performs three doublings and
-checks $u \neq 0$). A point outside the subgroup but inside $\mathbb{J}$ is
-called **small-order** if it has order dividing the cofactor 8.
+circuit ([`EdwardsPoint::assert_not_small_order`][assert_not_small_order]
+performs three doublings and checks $u \neq 0$). A point outside the subgroup
+but inside $\mathbb{J}$ is called **small-order** if it has order dividing the
+cofactor 8.
 
 ### 2.2 Hashes and PRFs
 
 **Definition 3.5 (BLAKE2 personalisation).** The Sapling crate uses BLAKE2s for
-32-byte outputs (`crh_ivk`, `prf_nf`, the group hash) and BLAKE2b for 64-byte
-outputs (`kdf_sapling`, `prf_ock`, ZIP 32 child derivations). Both hashes accept
-an 8-byte (BLAKE2s) or 16-byte (BLAKE2b) **personalisation** that
-domain-separates calls. Every personalisation string used by Sapling is
-enumerated in
+32-byte outputs ([`crh_ivk`][crh_ivk], [`prf_nf`][prf_nf], the group hash) and
+BLAKE2b for 64-byte outputs ([`kdf_sapling`][kdf_sapling], [`prf_ock`][prf_ock],
+ZIP 32 child derivations). Both hashes accept an 8-byte (BLAKE2s) or 16-byte
+(BLAKE2b) **personalisation** that domain-separates calls. Every personalisation
+string used by Sapling is enumerated in
 [`constants.rs`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/constants.rs#L17-L40).
 
 **Definition 3.6 (Pedersen hash).** Given an ordered list of fixed generators
@@ -98,8 +102,9 @@ $$
   [r] \cdot G_{\mathsf{rcm}},
 $$
 
-where $G_{\mathsf{rcm}}$ is the `NOTE_COMMITMENT_RANDOMNESS_GENERATOR`. This is
-what the note commitment uses
+where $G_{\mathsf{rcm}}$ is the
+[`NOTE_COMMITMENT_RANDOMNESS_GENERATOR`][NOTE_COMMITMENT_RANDOMNESS_GENERATOR].
+This is what the note commitment uses
 ([source](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/spec.rs#L143-L152)).
 
 **Definition 3.8 (homomorphic value commitment).** A second commitment scheme,
@@ -190,7 +195,7 @@ https://github.com/zcash/sapling-crypto/blob/0.7.0/src/group_hash.rs
 Note the cofactor clearing on line 33 (`CofactorGroup::clear_cofactor`), which
 is what guarantees the output lives in $\mathbb{J}^{(r)}$ rather than in
 $\mathbb{J}$, and the explicit identity rejection on lines 34-39, which keeps
-`group_hash` from returning the neutral element.
+[`group_hash`][group_hash] from returning the neutral element.
 
 ## 4. Failure modes
 
@@ -202,7 +207,8 @@ $\mathbb{J}$, and the explicit identity rejection on lines 34-39, which keeps
 - **Forgetting to clear the cofactor.** A point sampled in $\mathbb{J}$ by
   hash-to-curve without `clear_cofactor` may have small order (order
   $1, 2, 4, 8$). Operations involving such a point can leak group structure or
-  open up attacks like the one `from_bytes_not_small_order` defends against.
+  open up attacks like the one
+  [`from_bytes_not_small_order`][from_bytes_not_small_order] defends against.
   Caught by:
   [`value::ValueCommitment::from_bytes_not_small_order`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/value.rs#L167-L170)
   rejects small-order points, and the circuit
@@ -266,3 +272,27 @@ and
   motivate the
   [no-duplicate-and-no-linear-relation tests](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/constants.rs#L364-L427)
   on the seven generators.
+
+<!-- Source links (zcash/sapling-crypto @ 0.7.0; jubjub via docs.rs) -->
+
+[jubjub::ExtendedPoint]:
+  https://docs.rs/jubjub/latest/jubjub/struct.ExtendedPoint.html
+[jubjub::SubgroupPoint]:
+  https://docs.rs/jubjub/latest/jubjub/struct.SubgroupPoint.html
+[jubjub::Base]: https://docs.rs/jubjub/latest/jubjub/type.Base.html
+[jubjub::Scalar]: https://docs.rs/jubjub/latest/jubjub/type.Scalar.html
+[jubjub::Fr]: https://docs.rs/jubjub/latest/jubjub/struct.Fr.html
+[assert_not_small_order]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/circuit/ecc.rs#L86
+[crh_ivk]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/spec.rs#L25
+[prf_nf]: https://github.com/zcash/sapling-crypto/blob/0.7.0/src/spec.rs#L67
+[kdf_sapling]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/keys.rs#L665
+[prf_ock]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note_encryption.rs#L38
+[NOTE_COMMITMENT_RANDOMNESS_GENERATOR]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/constants.rs#L63
+[group_hash]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/group_hash.rs#L15
+[from_bytes_not_small_order]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/value.rs#L167

@@ -18,14 +18,12 @@ The course is pinned to upstream tag
 `c5e596c239dbf9138a74246b843bcd01413f51c7`). Every embedded code block points at
 that ref so the course cannot drift when the working tree refactors.
 
-<!-- prettier-ignore-start -->
-:::warning Auto-generated. The code is the law.
+:::warning[Auto-generated. The code is the law.]
 
-This site was generated automatically (Claude Code) by reading the
-upstream sources. Errors may have been introduced in translation, and
-the math statements may not capture every consensus-relevant subtlety.
-Treat every claim here as a hypothesis that the upstream source either
-confirms or contradicts.
+This site was generated automatically (Claude Code) by reading the upstream
+sources. Errors may have been introduced in translation, and the math statements
+may not capture every consensus-relevant subtlety. Treat every claim here as a
+hypothesis that the upstream source either confirms or contradicts.
 
 When in doubt, refer to:
 
@@ -41,7 +39,6 @@ Corrections welcome: open an issue or PR against the
 of the fork.
 
 :::
-<!-- prettier-ignore-end -->
 
 ## What this crate is
 
@@ -67,9 +64,9 @@ slightly different blackboard letters in places; we standardise.
     field of the Jubjub curve. Bit size 255.
   - $r_{\mathbb{J}}$: the order of the Jubjub prime-order subgroup.
 - $\mathbb{J}$: the Jubjub Edwards curve (in this code,
-  `jubjub::ExtendedPoint`).
+  [`jubjub::ExtendedPoint`][jubjub::ExtendedPoint]).
 - $\mathbb{J}^{(r)}$: the prime-order subgroup of $\mathbb{J}$
-  (`jubjub::SubgroupPoint`).
+  ([`jubjub::SubgroupPoint`][jubjub::SubgroupPoint]).
 - $[k]P$: scalar multiplication of curve point $P$ by scalar $k$.
 - $\mathsf{Com}(m; r)$: a Pedersen commitment to bit-string $m$ with randomness
   $r$, taking values in $\mathbb{J}^{(r)}$.
@@ -125,3 +122,10 @@ The implementation aims to be constant-time at every secret-dependent branch (it
 leans on `subtle::CtOption`, `subtle::ConstantTimeEq`, `group::cofactor`
 clearings, etc.). The Groth16 trusted setup is out of scope for this crate; it
 is a separate ceremony.
+
+<!-- Source links (zcash/sapling-crypto @ 0.7.0; jubjub via docs.rs) -->
+
+[jubjub::ExtendedPoint]:
+  https://docs.rs/jubjub/latest/jubjub/struct.ExtendedPoint.html
+[jubjub::SubgroupPoint]:
+  https://docs.rs/jubjub/latest/jubjub/struct.SubgroupPoint.html
