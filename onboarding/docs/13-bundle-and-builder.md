@@ -21,6 +21,39 @@ If you intend to make any non-trivial behavioural change to this crate, you will
 touch `builder.rs`. This chapter walks the state machine and identifies the
 named transitions.
 
+### 1.1 Relation to the Bitcoin UTXO model
+
+A Sapling bundle maps onto the structure of a Bitcoin transaction, which is a
+useful starting analogy if you already know Bitcoin:
+
+- A Sapling **note** is the shielded analogue of a Bitcoin **UTXO**: a discrete
+  amount, created once and later consumed in full. There is no partial spend;
+  change is returned as a new output note, exactly as in Bitcoin.
+- A **spend description** plays the role of a transaction **input**: it consumes
+  an existing note.
+- An **output description** plays the role of a transaction **output**: it
+  creates a new note for a recipient.
+- The bundle's two vectors plus its value balance mirror a transaction's `vin`,
+  `vout`, and fee.
+
+The analogy stops at privacy. The table contrasts the two models on the points
+that differ:
+
+| Aspect                      | Bitcoin                               | Sapling                                                                                                               |
+| --------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Input references its source | `txid:vout` pointer, public           | none; a spend proves tree membership in zero knowledge (see [Spend and Output circuits](./spend-and-output-circuits)) |
+| Double-spend prevention     | remove the UTXO from the UTXO set     | publish a [nullifier](./notes-and-nullifiers); nodes reject repeats without learning which note                       |
+| Is the spent coin deleted?  | yes, from the UTXO set                | no; the commitment tree is append-only, and spent-ness lives in a separate nullifier set                              |
+| Amounts                     | in the clear                          | hidden behind [value commitments](./value-commitments)                                                                |
+| Balance check               | `sum(inputs) >= sum(outputs)`, public | homomorphic: the value commitments must net to the value balance, enforced by the binding signature                   |
+
+The one-line summary: spend = input, output = output, note = UTXO, but a Bitcoin
+input is a public pointer to the coin it spends, whereas a Sapling spend is a
+zero-knowledge proof of ownership that reveals only a nullifier. The net value
+balance is revealed when value crosses between the transparent and shielded
+pools; that is where a transparent, Bitcoin-style input or output connects to
+the shielded side.
+
 ## 2. Definitions
 
 **Definition 13.1 (Authorization marker).** A phantom type that encodes the
