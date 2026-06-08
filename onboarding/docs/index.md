@@ -70,6 +70,13 @@ The whole protocol rests on four objects:
 
 ### What the circuits actually prove
 
+There are two circuits, and they are near mirror images. A transaction carries
+**one Spend proof per note it consumes** and **one Output proof per note it
+creates**: the Spend circuit proves you own an existing note in the tree and may
+destroy it, while the Output circuit proves a new note is well-formed for its
+recipient. The two sides are tied together only by the homomorphic value
+commitments, balanced by the binding signature.
+
 It is tempting to read the Spend proof as "just a Merkle path". The path is one
 clause of several. The Spend circuit proves, in zero knowledge, the
 **conjunction** of:

@@ -23,6 +23,33 @@ role of each major block (the value commitment exposure, the ivk derivation, the
 Merkle ascent, the nullifier computation). It also clarifies that Groth16 is
 R1CS, not Plonkish, and that R1CS has no notion of "selectors".
 
+### 1.1 Spend vs Output at a glance
+
+The two circuits are near mirror images. A shielded transaction destroys some
+existing notes and creates some new ones: it carries **one Spend proof per note
+consumed** and **one Output proof per note created**. The Spend circuit proves
+you own an existing note in the tree and are authorised to destroy it; the
+Output circuit proves a new note is well-formed for its recipient. The only
+thing linking the two is the value commitment `cv`, and that link is checked
+outside both circuits by the binding signature (see
+[Value commitments](./value-commitments)).
+
+| Aspect              | Spend                                           | Output                                                |
+| ------------------- | ----------------------------------------------- | ----------------------------------------------------- |
+| Note lifecycle      | consumes an existing note                       | creates a new note                                    |
+| Merkle tree         | proves membership (auth path to `anchor`)       | no tree interaction                                   |
+| Nullifier `nf`      | derives and reveals it                          | none                                                  |
+| Note commitment     | already a leaf; re-derived to bind the proof    | computed and exposed as `cmu` (a future leaf)         |
+| Authorisation       | proves knowledge of the spend key; exposes `rk` | none                                                  |
+| Ephemeral key `epk` | not used                                        | proves `epk = [esk] g_d` so the recipient can decrypt |
+| Shared clause       | value commitment `cv`                           | value commitment `cv`                                 |
+| Size                | $\approx$ 99k constraints                       | $\approx$ 8k constraints                              |
+
+The size gap follows from the clause lists below: $R_{\mathsf{Spend}}$
+(Definition 11.1) has ten clauses including a 32-level Merkle ascent, while
+$R_{\mathsf{Output}}$ (Definition 11.2) has four and never touches the tree.
+That is why a Spend proof costs roughly 12x an Output proof.
+
 ## 2. Definitions
 
 **Definition 11.1 (the Spend relation $R_{\mathsf{Spend}}$).** Public input
