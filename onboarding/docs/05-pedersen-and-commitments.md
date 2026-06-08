@@ -102,6 +102,45 @@ crate fails immediately.
 
 ### 3.2 The trapdoor: rcm
 
+In [`NoteCommitTrapdoor`][NoteCommitTrapdoor] the "trapdoor" is the commitment
+randomness `rcm`, a single Jubjub scalar (`jubjub::Fr`). It is not a trapdoor in
+the trapdoor-permutation sense (a secret that inverts a one-way function). The
+name comes from the commitment-scheme literature, where the random opening value
+is conventionally called the trapdoor.
+
+To see the role it plays, expand Definition 5.2. The windowed Pedersen
+commitment is
+
+$$
+\mathsf{NoteCommit}_{\mathsf{rcm}}(\mathsf{g_d}, \mathsf{pk_d}, v)
+  = \mathsf{PedersenHashToPoint}(v \mathbin{\|} \mathsf{g_d} \mathbin{\|}
+    \mathsf{pk_d}) + [\mathsf{rcm}] \cdot R,
+$$
+
+where $R$ is a fixed, independent generator
+([`NOTE_COMMITMENT_RANDOMNESS_GENERATOR`][NOTE_COMMITMENT_RANDOMNESS_GENERATOR]).
+The `rcm.0` scalar passed on
+[line 56](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note/commitment.rs#L56)
+is the multiplier on $R$. That $[\mathsf{rcm}] \cdot R$ term is what turns a
+bare Pedersen hash into a commitment:
+
+- **Hiding** comes from `rcm`. Because `rcm` is sampled uniformly and $R$ is
+  independent of the Pedersen generators, $[\mathsf{rcm}] \cdot R$ is a
+  uniformly random group element that masks the hash of the note contents.
+  Without `rcm` the commitment reveals nothing about $v$, $\mathsf{g_d}$, or
+  $\mathsf{pk_d}$. Holding `rcm` is what lets you reopen the commitment, hence
+  "trapdoor".
+- **Binding** comes from discrete-log hardness between the Pedersen generators
+  and $R$: finding a second $(\mathsf{msg}', \mathsf{rcm}')$ that maps to the
+  same point implies a non-trivial DL relation.
+
+Pedersen commitments are perfectly (information-theoretically) hiding and
+computationally binding. The trapdoor `rcm` is what makes hiding unconditional,
+while binding rests on the DL assumption. The same construction is reused for
+the value commitment `cv`, where the blinding scalar
+[`ValueCommitTrapdoor`][ValueCommitTrapdoor] (`rcv`) plays the identical role;
+see [Value commitments](./value-commitments).
+
 The randomness `rcm` is wrapped in a small newtype because the protocol
 distinguishes between the user-visible "rseed" (a 32-byte buffer) and the
 derived scalar that goes into the commitment. The newtype prevents the wrong
@@ -236,6 +275,10 @@ rejected, regardless of canonicality).
 
 [NoteCommitment]:
   https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note/commitment.rs#L19
+[NoteCommitTrapdoor]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note/commitment.rs#L15
+[ValueCommitTrapdoor]:
+  https://github.com/zcash/sapling-crypto/blob/0.7.0/src/value.rs#L86
 [ExtractedNoteCommitment]:
   https://github.com/zcash/sapling-crypto/blob/0.7.0/src/note/commitment.rs#L63
 [ExtractedNoteCommitment::from_bytes]:
