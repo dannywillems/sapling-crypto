@@ -58,8 +58,10 @@ $$
 $$
 
 where $L = |p \mathbin{\|} m|$, $S = 3 \cdot 63 = 189$ bits per generator
-(windows of 3 bits, up to 63 chunks per segment), and $\mathsf{enc}_i$ is the
-signed-window encoding of segment $i$
+(windows of 3 bits, up to
+[`PEDERSEN_HASH_CHUNKS_PER_GENERATOR`][PEDERSEN_HASH_CHUNKS_PER_GENERATOR]
+`= 63` chunks per segment), and $\mathsf{enc}_i$ is the signed-window encoding
+of segment $i$
 ([source](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/pedersen_hash.rs#L44-L78)).
 The output lives in $\mathbb{J}^{(r)}$.
 
