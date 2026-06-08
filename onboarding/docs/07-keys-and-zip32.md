@@ -20,7 +20,7 @@ By the end you should be able to draw, from memory, the derivation DAG from
 `seed` to [`PaymentAddress`][PaymentAddress], name each edge function, and
 locate each node in the source.
 
-## 1.5 a one-page reminder of how a Sapling spend works
+## 1.5 A one-page reminder of how a Sapling spend works
 
 Before naming eight keys it helps to remember what actually happens when a
 shielded user spends. The keys are not arbitrary; each one exists because some
@@ -28,7 +28,7 @@ step below needs exactly that capability and no more. Read this section as a
 checklist of "what must someone be able to do", then read section 2 as "which
 key gives them that ability".
 
-### 1.5.1 the state on chain
+### 1.5.1 The state on chain
 
 A shielded balance is not an account. It is a set of **notes**. A note is a
 tuple
@@ -51,7 +51,7 @@ trapdoor. The chain never stores the note. It stores only
 Spending a note is therefore: prove that some note exists in the tree, reveal
 its nullifier, and create new notes for the recipients of the spend.
 
-### 1.5.2 the four things the spender must do
+### 1.5.2 The four things the spender must do
 
 For each input note the spender must be able to:
 
@@ -80,7 +80,7 @@ own activity** without holding the spending key, both on the incoming side
 (notes addressed to me) and the outgoing side (notes I sent, which I want to
 remember after I no longer have the plaintext).
 
-### 1.5.3 mapping each ability to a key
+### 1.5.3 Mapping each ability to a key
 
 Each ability in 1.5.2 is granted by exactly one secret, and the names of the
 keys track that one-to-one mapping:
