@@ -78,7 +78,7 @@ slightly different blackboard letters in places; we standardise.
 - $\mathsf{PRF}^{x}_{k}(\cdot)$: a keyed pseudorandom function named $x$ with
   key $k$.
 - $a \mathbin{\|} b$: concatenation of byte strings.
-- $\stackrel{\$}{\leftarrow}$: uniform sampling.
+- $\stackrel{\mathdollar}{\leftarrow}$: uniform sampling.
 - $\mathsf{cmu}$: the u-coordinate of a note commitment. The leaf of the note
   commitment tree.
 - $\mathsf{nf}$: a nullifier.
