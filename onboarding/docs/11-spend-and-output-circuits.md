@@ -85,10 +85,15 @@ The relation $R_{\mathsf{Spend}}(x, w) = 1$ iff all of:
 9. The authentication path $\mathsf{auth\_path}$ from $\mathsf{cmu}$ to
    $\mathsf{anchor}$ verifies. Modulo: if $v = 0$ the path is unconstrained
    (zero-value bypass, Invariant 6.5).
-10. $\mathsf{nf} = \mathsf{BLAKE2s}\_{\mathsf{Zcash_nf}}(
-    \mathsf{repr}(\mathsf{nk}) \mathbin{\|} \mathsf{repr}(\mathsf{cm}
-    - [\mathsf{pos}] G\_{\mathsf{nf}}))$, where $\mathsf{pos}$ is inferred from
-      the `auth_path` position bits.
+10. The nullifier matches:
+
+    $$
+    \mathsf{nf} = \mathsf{BLAKE2s}_{\mathsf{Zcash\_nf}}\bigl(
+      \mathsf{repr}(\mathsf{nk}) \mathbin{\|} \mathsf{repr}(\mathsf{cm}
+      - [\mathsf{pos}] \, G_{\mathsf{nf}})\bigr),
+    $$
+
+    where $\mathsf{pos}$ is inferred from the `auth_path` position bits.
 
 **Definition 11.2 (the Output relation $R_{\mathsf{Output}}$).** Public input
 
