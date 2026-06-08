@@ -151,7 +151,119 @@ structure beyond that; encoding (UTF-8 vs binary "f6"-padding) is the caller's
 responsibility, and changed signature in 0.5: see the
 [CHANGELOG entry for 0.5.0](https://github.com/zcash/sapling-crypto/blob/0.7.0/CHANGELOG.md#050---2025-02-20).
 
-## 4. Failure modes
+## 4. Why decryption gives a spendable note
+
+Section 2 defined the key agreement and the KDF; section 3 showed where they
+live in the code. What is missing is the connection to the Spend relation in
+[chapter 11](./spend-and-output-circuits) (Definition 11.1): how does the data
+the receiver pulls out of `enc_ciphertext` become enough to spend the note
+later? This section closes the loop.
+
+### 4.1 What the receiver learns from one trial decryption
+
+For every on-chain OutputDescription, the receiver runs
+[`try_sapling_note_decryption`][try_sapling_note_decryption] with their `ivk`.
+The trial either fails (the output is for someone else) or succeeds and returns
+a [`Note`][Note] and a 512-byte memo.
+
+On success the receiver holds the contents of the v2 plaintext format:
+
+| Field   | Plaintext bytes   | Used at spend time as        |
+| ------- | ----------------- | ---------------------------- |
+| `d`     | bytes 1..12       | `g_d = GroupHash(d)` witness |
+| `v`     | bytes 12..20 (LE) | `v` witness                  |
+| `rseed` | bytes 20..52      | `rcm` and `esk` derivation   |
+| memo    | bytes 52..564     | not used in the circuit      |
+
+From `rseed` the receiver derives `rcm` and `esk` (see [`Note::rseed`][rseed]
+and [`derive_esk`][derive_esk]). From `d` they recompute `g_d`. From their own
+`ivk` they compute `pk_d = [ivk] g_d` and the recipient address `(d, pk_d)`.
+From `(g_d, pk_d, v, rcm)` they recompute the note commitment `cm` and confirm
+it appears at some position in their local copy of the note commitment tree,
+giving them the authentication path.
+
+The receiver also re-derives `epk = [esk] g_d` and checks it against the
+on-chain `epk` (Invariant 10.5). This is the binding check that ties the note to
+a single ciphertext: a malicious sender cannot offer two plaintexts under one
+`epk` and have both decrypt.
+
+### 4.2 The decrypted note is exactly the missing half of the Spend witness
+
+Chapter 11, Definition 11.1, lists the Spend circuit's private witness as
+
+$$
+w = (\mathsf{ak}, \mathsf{nsk}, \mathsf{g_d}, v, \mathsf{rcv},
+   \mathsf{rcm}, \mathsf{ar}, \mathsf{auth\_path}).
+$$
+
+Sort each component by where it comes from at spend time:
+
+| Witness component | Source                                |
+| ----------------- | ------------------------------------- |
+| `g_d`             | decrypted `d`, then `GroupHash`       |
+| `v`               | decrypted plaintext                   |
+| `rcm`             | derived from decrypted `rseed`        |
+| `auth_path`       | receiver's local note commitment tree |
+| `ak`              | receiver's key tree (from `ask`)      |
+| `nsk`             | receiver's key tree                   |
+| `rcv`, `ar`       | freshly sampled per spend             |
+
+The first four rows are precisely what the sender supplied through the
+ciphertext and the chain. The next two come from the receiver's own spending
+key. The last two are local randomness. Nothing more is needed, and in
+particular the receiver never has to talk to the sender again. The DH-encrypted
+plaintext is exactly the in-band channel that delivers the note-specific half of
+the Spend witness, sized to the bytes the receiver could not have otherwise
+reconstructed.
+
+The same logic explains why the receiver also recomputes `pk_d` from their own
+`ivk` rather than reading it from the ciphertext: the Spend circuit re-derives
+`pk_d = [ivk] g_d` as constraint 6 of Definition 11.1, and any inconsistency
+between the decrypted note and the receiver's `ivk` shows up as a witness that
+fails to satisfy constraint 8 (the note commitment).
+
+### 4.3 Why the Output circuit can skip recipient authentication
+
+Definition 11.2 has the Output circuit witnessing `pk_d` as an **unchecked field
+element**: no on-curve check, no subgroup check, no proof that `pk_d`
+corresponds to anyone's `ivk`. Chapter 11 notes the reason in passing; this is
+the place to make it explicit.
+
+At Output time the sender alone cannot authenticate the recipient even if the
+protocol asked: the sender only has the public address `(d, pk_d)` and no
+signature from the receiver. So the Output circuit constrains only what the
+sender can prove unilaterally:
+
+- `cv` is a valid value commitment opening to the witnessed `v`;
+- `epk = [esk] g_d` for the witnessed `esk` and `g_d`;
+- `g_d` is on-curve and not small order;
+- `cmu` is the `u`-coordinate of `NoteCommit(v, g_d, pk_d, rcm)`.
+
+If `pk_d` is garbage (not on the curve, in the small-order subgroup, or not
+anyone's diversified key), the chain still accepts the OutputDescription. The
+cost is borne entirely by the named recipient: they cannot spend the note
+because no `ivk` they hold would let them derive a matching `pk_d` under
+constraint 6 of Definition 11.1. The malformed output becomes unspendable
+change, and the sender has burned their funds.
+
+Authentication of the recipient is therefore deferred to spend time:
+
+$$
+\mathsf{pk_d} = [\mathsf{ivk}] \cdot \mathsf{g_d}
+$$
+
+inside the Spend circuit binds the note to the holder of `ivk`, and only that
+holder could have decrypted the ciphertext in the first place. The two checks
+(off-chain decryption with `ivk`, in-circuit `pk_d` equality) lock the same
+identity at two different moments, with no need for the sender to participate in
+either.
+
+This is also the structural reason the Output circuit is much smaller than the
+Spend circuit (section 3 of chapter 11): no Merkle ascent, no nullifier
+derivation, no `ivk` re-derivation. All of those move to spend time, where the
+actor with the secrets is also the actor doing the proving.
+
+## 5. Failure modes
 
 - **ZIP-212 enforcement misconfigured.** A node that runs with
   [`Zip212Enforcement`][Zip212Enforcement]`::Off` on a chain past the grace
@@ -180,7 +292,7 @@ responsibility, and changed signature in 0.5: see the
   itself is a per-note fresh sample. Caught by: see
   [Notes and nullifiers](./notes-and-nullifiers).
 
-## 5. Spec pointers
+## 6. Spec pointers
 
 - [Zcash Protocol Specification, §5.4.4 (In-band secret distribution)](https://zips.z.cash/protocol/protocol.pdf#saplingandorchardinband)
   is the authority on the protocol-level encryption.
@@ -192,7 +304,7 @@ responsibility, and changed signature in 0.5: see the
   is the trait this module implements. Read its `Domain` trait before extending
   the Sapling impl.
 
-## 6. Exercises
+## 7. Exercises
 
 1. **Decrypt a known test vector.** Open
    [`src/test_vectors/note_encryption.rs`](https://github.com/zcash/sapling-crypto/blob/0.7.0/src/test_vectors/note_encryption.rs)
