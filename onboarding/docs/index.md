@@ -40,6 +40,65 @@ of the fork.
 
 :::
 
+## What Sapling does
+
+Sapling is the shielded-payment layer of Zcash. It moves value while hiding the
+sender, the recipient, and the amount from anyone reading the chain, while still
+letting every node verify that no money was created or double-spent. The
+cryptography in this crate is what makes those hidden payments checkable.
+
+The whole protocol rests on four objects:
+
+- **Note.** A shielded coin: an amount, the recipient's key material, and some
+  randomness. A note is never published. What is published is its **commitment**
+  (a hiding, binding Pedersen commitment; its extracted form is `cmu`). See
+  [Note commitments](./pedersen-and-commitments).
+- **Commitment tree.** Every note commitment ever created is appended as a leaf
+  of a fixed-depth Merkle tree. The current root is the **anchor**. See
+  [The note commitment tree](./note-commitment-tree).
+- **Nullifier.** Spending a note publishes a **nullifier** (`nf`), derived
+  deterministically from the note and the owner's nullifier key. Each note has
+  exactly one nullifier, and nodes reject a transaction whose nullifier has
+  already appeared; that is what prevents double-spends. An observer cannot link
+  the nullifier back to the note's commitment. See
+  [Notes and nullifiers](./notes-and-nullifiers).
+- **Value commitment.** Amounts are hidden behind additively homomorphic
+  Pedersen commitments (`cv`). Because they add, a verifier can check that
+  inputs minus outputs equal the declared balance without learning any single
+  amount; that check is the **binding signature**. See
+  [Value commitments](./value-commitments).
+
+### What the circuits actually prove
+
+It is tempting to read the Spend proof as "just a Merkle path". The path is one
+clause of several. The Spend circuit proves, in zero knowledge, the
+**conjunction** of:
+
+1. **Membership (the Merkle path).** The spent note's commitment is a leaf of
+   the tree whose root is the public anchor. This is the clause usually pictured
+   first, and it is where privacy comes from: the path and the note are private
+   witnesses, so the proof shows "some note in the tree" without revealing which
+   one.
+2. **Value consistency.** The public value commitment `cv` commits to the same
+   amount that is inside that note.
+3. **Nullifier integrity.** The public nullifier `nf` is the correct nullifier
+   for that note under the owner's nullifier key, so the right note is the one
+   being marked spent.
+4. **Spend authority.** The prover knows the spend authorising key behind the
+   validating key `ak`, and the public randomised key `rk` is a re-randomisation
+   of `ak`, tying the proof to the signature that authorises the spend.
+
+The Output circuit is the dual. It proves that a freshly created note's
+commitment and its value commitment `cv` are well-formed for the stated amount,
+and that the ephemeral public key is consistent with the diversified base. It
+does not touch the tree, because a new note has no path yet.
+
+What is deliberately **not** in either circuit: the transaction-wide balance.
+That is checked outside the SNARK by the binding signature over the value
+commitments. Each circuit reasons about a single note;
+[Spend and Output circuits](./spend-and-output-circuits) states both relations
+clause by clause.
+
 ## What this crate is
 
 `sapling-crypto` implements the cryptography used by the Zcash "Sapling"
