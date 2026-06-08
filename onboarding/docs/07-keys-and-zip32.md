@@ -20,9 +20,97 @@ By the end you should be able to draw, from memory, the derivation DAG from
 `seed` to [`PaymentAddress`][PaymentAddress], name each edge function, and
 locate each node in the source.
 
-## 2. Definitions
+## 2. Why so many keys
 
-### 2.1 The Sapling key tree (below ZIP 32)
+Sapling could in principle drive everything from one secret. It does not. The
+wallet is instead split into a **capability ladder**: each rung holds strictly
+less power than the rung above, and the names of the keys track which capability
+they grant. The point is **least privilege**, so each counterparty (signer,
+prover, viewer, payment processor, recipient) only ever holds what it needs.
+That is what produces the long list of keys: each key isolates one capability
+that some real workflow wants to hand out independently.
+
+### 2.1 The capability ladder
+
+From most powerful to least powerful:
+
+| Rung                           | Key bundle                                                           | What it lets you do                                                                                 |
+| ------------------------------ | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Spend                          | `ExpandedSpendingKey` $= (\mathsf{ask}, \mathsf{nsk}, \mathsf{ovk})$ | Sign spends, build Spend proofs, decrypt own outgoing notes. Full control of funds.                 |
+| Prove                          | `ProofGenerationKey` $= (\mathsf{ak}, \mathsf{nsk})$                 | Build Spend proofs (and the in-circuit nullifier) without `ask`. Cannot sign, so cannot move funds. |
+| View (full)                    | `FullViewingKey` $= (\mathsf{ak}, \mathsf{nk}, \mathsf{ovk})$        | Detect own spends, decrypt incoming notes, decrypt own outgoing notes. Read access to all activity. |
+| View (incoming only)           | $\mathsf{ivk}$                                                       | Trial-decrypt incoming notes. Cannot detect own spends, cannot see outgoing.                        |
+| View (outgoing only)           | $\mathsf{ovk}$                                                       | Re-decrypt notes this wallet sent (change tracking, audit).                                         |
+| Receive (one unlinkable label) | `PaymentAddress` $= (\mathsf{d}, \mathsf{pk_d})$                     | Receive funds. Many `d` values under one `ivk` give unlinkable addresses on chain.                  |
+
+Workflows that motivate the splits:
+
+- A hardware wallet holds $\mathsf{ask}$ and signs spends. A faster online
+  machine holds $(\mathsf{ak}, \mathsf{nsk})$ and runs the heavy Groth16 prover.
+  The online machine cannot move funds even if it is compromised.
+- An auditor or watch-only wallet holds the `FullViewingKey`. It sees the
+  wallet's entire transaction history on both sides but cannot spend.
+- A payment processor holds only $\mathsf{ivk}$ to detect incoming payments and
+  learns nothing about what the receiver later spends.
+- A user advertises many `PaymentAddress` values (one per counterparty) under
+  one wallet, so that on-chain observers cannot link them.
+
+The picture inside the [Spend circuit](./spend-and-output-circuits) is the
+mirror image of this ladder: the circuit witnesses the proving-capability keys
+$(\mathsf{ak}, \mathsf{nsk})$ and derives every downstream key in zero
+knowledge, so the proof certifies "I hold the proving capability for this note"
+without revealing any key directly.
+
+### 2.2 A mnemonic for the names
+
+The alphabet soup is regular once you see the prefixes:
+
+- **a** stands for "auth". $\mathsf{ask}$ is the spend-**a**uthorizing
+  **s**ecret **k**ey; $\mathsf{ak}$ is the matching validating point.
+- **n** stands for "nullifier". $\mathsf{nsk}$ is the **n**ullifier **s**ecret
+  **k**ey; $\mathsf{nk} = [\mathsf{nsk}] G_{\mathsf{pgk}}$ is its public
+  deriving point.
+- **i** stands for "incoming". $\mathsf{ivk}$ is the **i**ncoming **v**iewing
+  **k**ey.
+- **o** stands for "outgoing". $\mathsf{ovk}$ is the **o**utgoing **v**iewing
+  **k**ey.
+- **d** is the diversifier layer: $\mathsf{d}$ is the 88-bit diversifier;
+  $\mathsf{g_d}$ is its hash to a Jubjub base;
+  $\mathsf{pk_d} = [\mathsf{ivk}]
+  \mathsf{g_d}$ is the diversified transmission
+  key; $\mathsf{dk}$ is the AES-256 key used by FF1 (ZIP 32) to map indices to
+  diversifiers.
+
+In one sentence: every secret/public pair is "$X\mathsf{sk}$ to $X\mathsf{k}$ by
+scalar multiplication on a fixed generator"; $\mathsf{ivk}$ comes from a hash of
+$(\mathsf{ak}, \mathsf{nk})$ because the incoming-view capability is logically
+downstream of both auth and nullifier; the diversifier layer at the bottom is
+freshly generated as needed.
+
+### 2.3 Where each key shows up (cheat sheet)
+
+| Key             | Lives in           | Used by Spend circuit?                             | Used by Output circuit?                                    |
+| --------------- | ------------------ | -------------------------------------------------- | ---------------------------------------------------------- |
+| $\mathsf{ask}$  | spending key only  | no (signing is out of circuit)                     | no                                                         |
+| $\mathsf{ak}$   | proving / viewing  | yes: witness, feeds $\mathsf{rk}$ and ivk preimage | no                                                         |
+| $\mathsf{nsk}$  | proving / spending | yes: witness, $\mathsf{nk} = [\mathsf{nsk}] G$     | no                                                         |
+| $\mathsf{nk}$   | viewing            | yes: derived in-circuit, feeds $\mathsf{nf}$ + ivk | no                                                         |
+| $\mathsf{ivk}$  | incoming viewing   | yes: derived in-circuit, gives $\mathsf{pk_d}$     | no                                                         |
+| $\mathsf{ovk}$  | outgoing viewing   | no                                                 | no (used by note encryption only)                          |
+| $\mathsf{d}$    | address            | no                                                 | no                                                         |
+| $\mathsf{g_d}$  | address            | yes: witness, small-order check, note commitment   | yes: witness, small-order check, $\mathsf{epk}$, commit    |
+| $\mathsf{pk_d}$ | address            | yes: $[\mathsf{ivk}] \mathsf{g_d}$, in note commit | yes: witnessed without on-curve check, in note commit      |
+| $\mathsf{dk}$   | ZIP 32             | no                                                 | no                                                         |
+| $\mathsf{esk}$  | per-output secret  | no                                                 | yes: witness, $\mathsf{epk} = [\mathsf{esk}] \mathsf{g_d}$ |
+
+The two viewing keys ($\mathsf{ivk}$, $\mathsf{ovk}$) never enter a circuit
+themselves; they live in the note-encryption pipeline. Everything in the
+"proving" rung ($\mathsf{ak}$, $\mathsf{nsk}$) is what the Spend circuit
+actually witnesses.
+
+## 3. Definitions
+
+### 3.1 The Sapling key tree (below ZIP 32)
 
 Starting from a 32-256 byte spending key $\mathsf{sk}$ (typically output by ZIP
 32 child derivation):
@@ -38,6 +126,15 @@ wrapped by [`SpendValidatingKey`][SpendValidatingKey]. The Sapling RedJubjub
 signature scheme uses $(\mathsf{ask}, \mathsf{ak})$ as its signing /
 verification key pair.
 
+Role: $\mathsf{ask}$ signs the spend authorization signature
+$\mathsf{spendAuthSig}$ over the SIGHASH out of circuit; it never enters either
+circuit. $\mathsf{ak}$ is witnessed in the
+[Spend circuit](./spend-and-output-circuits) and used in two places: the
+re-randomized form $\mathsf{rk} = \mathsf{ak} + [\mathsf{ar}] G_{\mathsf{sk}}$
+is exposed as a public input (clause 2 of $R_{\mathsf{Spend}}$), and
+$\mathsf{repr}(\mathsf{ak})$ is the first half of the in-circuit $\mathsf{ivk}$
+preimage (clause 4).
+
 **Definition 7.2 (nsk, nk).** The **nullifier secret key** is
 $\mathsf{nsk} = \mathsf{PRF^{Expand,NSK}}(\mathsf{sk}) \in
 \mathbb{F}_{r_{\mathbb{J}}}$.
@@ -47,6 +144,17 @@ $\mathsf{nk} = [\mathsf{nsk}] \cdot
 wrapped by [`NullifierDerivingKey`][NullifierDerivingKey]. The pair
 $(\mathsf{ak}, \mathsf{nsk})$ is the [`ProofGenerationKey`][ProofGenerationKey];
 the pair $(\mathsf{ak}, \mathsf{nk})$ is the **viewing key**.
+
+Role: $\mathsf{nsk}$ is witnessed in the
+[Spend circuit](./spend-and-output-circuits), where clause 3 of
+$R_{\mathsf{Spend}}$ enforces $\mathsf{nk} = [\mathsf{nsk}] G_{\mathsf{pgk}}$.
+The derived $\mathsf{nk}$ is then mixed into the in-circuit nullifier
+$\mathsf{nf} = \mathsf{BLAKE2s}(\mathsf{repr}(\mathsf{nk})
+\mathbin{\|} \mathsf{repr}(\rho))$
+(clause 10) and into the $\mathsf{ivk}$ preimage (clause 4). Out of circuit, a
+holder of $\mathsf{nk}$ can recognise their own notes' nullifiers once they have
+decrypted the note (this is the "detect own spends" capability of the
+`FullViewingKey`).
 
 **Definition 7.3 (ivk).** The **incoming viewing key** is
 
@@ -60,11 +168,25 @@ most-significant 5 bits cleared so it fits in the Jubjub scalar field. It is
 computed by [`crh_ivk`][crh_ivk] and exposed as
 [`ViewingKey::ivk`][ViewingKey::ivk].
 
+Role: out of circuit, the receiver uses $\mathsf{ivk}$ to trial-decrypt every
+new on-chain Output (see [Note encryption](./note-encryption)). Inside the
+[Spend circuit](./spend-and-output-circuits), $\mathsf{ivk}$ is recomputed from
+$\mathsf{ak}, \mathsf{nk}$ (clause 4) and immediately used to derive
+$\mathsf{pk_d} = [\mathsf{ivk}] \mathsf{g_d}$ (clause 6); this is how the proof
+certifies that the spent note's recipient was indeed the wallet behind this
+$\mathsf{ivk}$.
+
 **Definition 7.4 (ovk).** The **outgoing viewing key**,
 [`OutgoingViewingKey`][OutgoingViewingKey], is a 32-byte opaque value
 $\mathsf{ovk} = \mathsf{PRF^{Expand,OVK}}(\mathsf{sk})$ truncated to 32 bytes.
 It is used to let the sender re-decrypt their own outputs without revealing them
 to the receiver's ivk.
+
+Role: $\mathsf{ovk}$ is purely out of circuit. Note encryption derives the
+`OutgoingCipherKey` from $\mathsf{ovk}$ to wrap $(\mathsf{pk_d}, \mathsf{esk})$
+into the `out_ciphertext`; a wallet that keeps $\mathsf{ovk}$ can later recover
+the recipient address and amount of any Output it created. Neither the Spend nor
+the Output circuit sees $\mathsf{ovk}$.
 
 **Definition 7.5 (d, g_d, pk_d).** A **diversifier**
 [`Diversifier`][Diversifier] $\mathsf{d} \in \{0,1\}^{88}$ defines the base of a
@@ -78,7 +200,20 @@ computed by
 payment address $(\mathsf{d}, \mathsf{pk_d})$ is a
 [`PaymentAddress`][PaymentAddress].
 
-### 2.2 ZIP 32
+Role: the diversifier $\mathsf{d}$ itself never enters either circuit; only its
+image $\mathsf{g_d}$ does, in both. In the
+[Spend circuit](./spend-and-output-circuits), $\mathsf{g_d}$ is witnessed and
+small-order-checked, then used both to derive
+$\mathsf{pk_d} = [\mathsf{ivk}]
+\mathsf{g_d}$ (clause 6) and to feed the note
+commitment (clause 8). In the [Output circuit](./spend-and-output-circuits),
+$\mathsf{g_d}$ is witnessed and small-order-checked, then used to expose the
+sender's ephemeral key $\mathsf{epk} = [\mathsf{esk}] \mathsf{g_d}$ (clause 3)
+and to feed the note commitment (clause 4); the Output circuit witnesses
+$\mathsf{pk_d}$ without an on-curve check, because the recipient's decryption
+will detect any malformed value off chain.
+
+### 3.2 ZIP 32
 
 **Definition 7.6 (ZIP 32 extended key).** An extended Sapling spending key is a
 quintuple
@@ -96,6 +231,12 @@ parent chain code. Hardened-only children: ZIP 32 forbids non-hardened Sapling
 derivation because the deterministic derivation of a child verification key from
 a parent's $\mathsf{ak}$ is not desired here.
 
+Role of $\mathsf{dk}$: $\mathsf{dk}$ is a 32-byte AES-256 key. It is used by FF1
+to map a 11-byte diversifier index $j$ to the 88-bit candidate diversifier
+$\mathsf{d}_j$ (Section 4.3); the same $\mathsf{dk}$ therefore enumerates the
+family of addresses under one wallet. It never enters either circuit and is not
+part of any viewing key shared with third parties.
+
 **Invariant 7.7 (non-zero ask).** $\mathsf{ask}$ must be nonzero. The
 probability of a zero ask from $\mathsf{PRF^{Expand,ASK}}$ is negligible
 ($2^{-252}$ ish), but the code explicitly handles it: every constructor of
@@ -112,9 +253,9 @@ non-prime-order points:
 [`jubjub::SubgroupPoint`][jubjub::SubgroupPoint]`::from_bytes` and an explicit
 `!p.is_identity()` check.
 
-## 3. The code
+## 4. The code
 
-### 3.1 The bottom layer: `keys.rs`
+### 4.1 The bottom layer: `keys.rs`
 
 `keys.rs` defines every key in the tree except the ZIP 32 extended ones. It is
 the file you will reread most often. Three regions to internalise:
@@ -149,7 +290,7 @@ https://github.com/zcash/sapling-crypto/blob/0.7.0/src/keys.rs#L247-L262
 https://github.com/zcash/sapling-crypto/blob/0.7.0/src/keys.rs#L336-L367
 ```
 
-### 3.2 The ZIP 32 layer: `zip32.rs`
+### 4.2 The ZIP 32 layer: `zip32.rs`
 
 `zip32.rs` is the largest single file in the crate (1876 lines). It mostly does
 plumbing: serialise/deserialise extended keys, derive children, find
@@ -170,7 +311,7 @@ derivation mixes in a separate personalisation
 ([`ZIP32_SAPLING_INT_PERSONALIZATION`][ZIP32_SAPLING_INT_PERSONALIZATION]) so
 that the internal and external scopes do not share an ivk.
 
-### 3.3 Diversifier search via FF1
+### 4.3 Diversifier search via FF1
 
 ZIP 32 reuses FF1 over AES-256 as a 88-bit format-preserving pseudo-random
 permutation to map a diversifier index to an actual 88-bit diversifier:
@@ -184,7 +325,7 @@ walks consecutive indices until it lands on one whose output happens to be a
 valid Jubjub-friendly diversifier (about 1 in 2). On average two indices are
 tried per address.
 
-## 4. Failure modes
+## 5. Failure modes
 
 - **Confusing ask and ak.** The signing key is `ask` (a scalar); the
   verification key is `ak` (a curve point). The
@@ -215,7 +356,7 @@ tried per address.
   the prepared form is not regenerated, decryption silently fails. Caught by:
   trial decryption tests in `note_encryption.rs`.
 
-## 5. Spec pointers
+## 6. Spec pointers
 
 - [Zcash Protocol Specification, §4.2.2 (Sapling Key Components)](https://zips.z.cash/protocol/protocol.pdf#saplingkeycomponents)
   is the master source for every relationship above.
@@ -226,7 +367,7 @@ tried per address.
   [`DiversifiableFullViewingKey`][DiversifiableFullViewingKey] shape and the
   "internal" FVK derivation.
 
-## 6. Exercises
+## 7. Exercises
 
 1. **Trace one derivation.** Pick a 32-byte spending key (e.g. all zeros). Step
    by step, compute `ask`, `ak`, `nsk`, `nk`, `ivk`, `ovk` using the public APIs
