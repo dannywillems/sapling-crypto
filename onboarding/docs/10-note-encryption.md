@@ -154,40 +154,88 @@ responsibility, and changed signature in 0.5: see the
 ## 4. Why decryption gives a spendable note
 
 Section 2 defined the key agreement and the KDF; section 3 showed where they
-live in the code. What is missing is the connection to the Spend relation in
-[chapter 11](./spend-and-output-circuits) (Definition 11.1): how does the data
-the receiver pulls out of `enc_ciphertext` become enough to spend the note
-later? This section closes the loop.
+live in the code. What is missing is the concrete answer to the recipient's
+question: **what exactly did the sender publish on chain, and which of those
+bytes do I need to spend the note later?** This section walks through the
+on-chain payload byte by byte, identifies the small slice the receiver actually
+consumes, and connects that slice to the Spend witness in
+[chapter 11](./spend-and-output-circuits) (Definition 11.1).
 
-### 4.1 What the receiver learns from one trial decryption
+### 4.1 What the sender publishes on chain
 
-For every on-chain OutputDescription, the receiver runs
-[`try_sapling_note_decryption`][try_sapling_note_decryption] with their `ivk`.
-The trial either fails (the output is for someone else) or succeeds and returns
-a [`Note`][Note] and a 512-byte memo.
+For every output the sender writes one `OutputDescription` to the block:
 
-On success the receiver holds the contents of the v2 plaintext format:
+```rust reference title="src/bundle.rs (OutputDescription)"
+https://github.com/zcash/sapling-crypto/blob/0.7.0/src/bundle.rs#L332-L340
+```
 
-| Field   | Plaintext bytes   | Used at spend time as        |
-| ------- | ----------------- | ---------------------------- |
-| `d`     | bytes 1..12       | `g_d = GroupHash(d)` witness |
-| `v`     | bytes 12..20 (LE) | `v` witness                  |
-| `rseed` | bytes 20..52      | `rcm` and `esk` derivation   |
-| memo    | bytes 52..564     | not used in the circuit      |
+Six fields, with sizes fixed by the protocol (v4 transactions):
 
-From `rseed` the receiver derives `rcm` and `esk` (see [`Note::rseed`][rseed]
-and [`derive_esk`][derive_esk]). From `d` they recompute `g_d`. From their own
-`ivk` they compute `pk_d = [ivk] g_d` and the recipient address `(d, pk_d)`.
-From `(g_d, pk_d, v, rcm)` they recompute the note commitment `cm` and confirm
-it appears at some position in their local copy of the note commitment tree,
-giving them the authentication path.
+| Field            | Size      | What it is                                                                                              |
+| ---------------- | --------- | ------------------------------------------------------------------------------------------------------- |
+| `cv`             | 32 bytes  | Pedersen value commitment to `v` with trapdoor `rcv`                                                    |
+| `cmu`            | 32 bytes  | u-coordinate of the note commitment `cm`; appended to the tree                                          |
+| `ephemeral_key`  | 32 bytes  | `epk = [esk] g_d`, the Diffie-Hellman ephemeral public key                                              |
+| `enc_ciphertext` | 580 bytes | AEAD-wrapped 564-byte note plaintext, encrypted under the DH key                                        |
+| `out_ciphertext` | 80 bytes  | AEAD-wrapped 64-byte sender-recovery plaintext, encrypted under `ock` (derived from the sender's `ovk`) |
+| `zkproof`        | 192 bytes | Groth16 proof of the Output relation (Definition 11.2)                                                  |
 
-The receiver also re-derives `epk = [esk] g_d` and checks it against the
-on-chain `epk` (Invariant 10.5). This is the binding check that ties the note to
-a single ciphertext: a malicious sender cannot offer two plaintexts under one
-`epk` and have both decrypt.
+The 580 bytes of `enc_ciphertext` are an AEAD wrapper (564-byte plaintext plus a
+16-byte Poly1305 tag) around one **note plaintext**. The plaintext layout is the
+same one the parser uses in section 3.2:
 
-### 4.2 The decrypted note is exactly the missing half of the Spend witness
+| Plaintext bytes | Field     | Notes                                   |
+| --------------- | --------- | --------------------------------------- |
+| `0`             | `version` | `0x01` (pre-Canopy) or `0x02` (ZIP 212) |
+| `1..12`         | `d`       | 11-byte diversifier                     |
+| `12..20`        | `v`       | 8-byte little-endian value              |
+| `20..52`        | `rseed`   | 32 bytes (v2) or 32-byte `rcm` (v1)     |
+| `52..564`       | `memo`    | 512-byte free-form memo                 |
+
+The 80 bytes of `out_ciphertext` wrap a 64-byte plaintext `(esk || pk_d)`,
+encrypted under a key derived from the sender's own `ovk`. This blob is for the
+sender to re-decrypt their own outgoing history (see section 3.3); the
+**receiver never reads it**.
+
+### 4.2 What the receiver actually needs
+
+Of the six fields above, the receiver needs exactly **two** to recover the note:
+
+- `ephemeral_key` (= `epk`), to compute the DH shared secret
+  $[\mathsf{ivk}] \cdot \mathsf{epk} = [\mathsf{esk}] \cdot \mathsf{pk_d}$ and
+  unlock the AEAD;
+- `enc_ciphertext`, the bytes to decrypt.
+
+Trial decryption (`try_sapling_note_decryption(ivk, output)`) feeds those two
+fields plus the receiver's `ivk` into the KDF + ChaCha20-Poly1305 chain defined
+in section 2. On success it returns the 564-byte plaintext, of which the **first
+52 bytes are all the spend-time circuit will ever see**:
+`(version, d, v, rseed)`. The 512-byte memo is human-facing and never touches
+the circuit.
+
+The receiver also reads two more on-chain fields, not to decrypt them, but to
+**cross-check the decryption**:
+
+- `cmu`: after deriving `rcm` from `rseed` and `pk_d = [ivk] g_d`, the receiver
+  recomputes `cm = NoteCommit(g_d, pk_d, v, rcm)` and checks its u-coordinate
+  against the on-chain `cmu`. The same `cmu` doubles as the note's address
+  inside the note commitment tree, so finding it there gives the receiver the
+  Merkle position and the authentication path.
+- `epk` (again): the receiver re-derives `esk` from `rseed`, computes
+  `epk' = [esk] g_d`, and rejects the output if `epk' != epk` (Invariant 10.5).
+  This is the binding check that prevents a malicious sender from attaching two
+  valid plaintexts to one `epk`.
+
+`cv`, `out_ciphertext`, and `zkproof` are never used by the receiver. They serve
+the validator (`cv` and `zkproof`) or the sender (`out_ciphertext`).
+
+So at the byte level the sender's job for the receiver is to publish the 52
+bytes of compact note plaintext (wrapped as the AEAD payload of
+`enc_ciphertext`) and the 32-byte `epk` needed to unwrap them. Everything else
+the receiver needs they either compute from those bytes or already hold
+themselves.
+
+### 4.3 Reconstructing the Spend witness
 
 Chapter 11, Definition 11.1, lists the Spend circuit's private witness as
 
@@ -196,25 +244,22 @@ w = (\mathsf{ak}, \mathsf{nsk}, \mathsf{g_d}, v, \mathsf{rcv},
    \mathsf{rcm}, \mathsf{ar}, \mathsf{auth\_path}).
 $$
 
-Sort each component by where it comes from at spend time:
+Each component comes from exactly one place at spend time:
 
-| Witness component | Source                                |
-| ----------------- | ------------------------------------- |
-| `g_d`             | decrypted `d`, then `GroupHash`       |
-| `v`               | decrypted plaintext                   |
-| `rcm`             | derived from decrypted `rseed`        |
-| `auth_path`       | receiver's local note commitment tree |
-| `ak`              | receiver's key tree (from `ask`)      |
-| `nsk`             | receiver's key tree                   |
-| `rcv`, `ar`       | freshly sampled per spend             |
+| Witness component | Source                                                                   |
+| ----------------- | ------------------------------------------------------------------------ |
+| `g_d`             | `GroupHash(d)`, with `d` from the decrypted compact note                 |
+| `v`               | bytes 12..20 of the decrypted compact note                               |
+| `rcm`             | $\mathsf{PRF^{Expand}_{rcm}}(\mathsf{rseed})$, `rseed` from bytes 20..52 |
+| `auth_path`       | receiver's local note commitment tree, indexed by the on-chain `cmu`     |
+| `ak`              | receiver's key tree (derived from `ask`)                                 |
+| `nsk`             | receiver's key tree                                                      |
+| `rcv`, `ar`       | freshly sampled per spend                                                |
 
-The first four rows are precisely what the sender supplied through the
-ciphertext and the chain. The next two come from the receiver's own spending
-key. The last two are local randomness. Nothing more is needed, and in
-particular the receiver never has to talk to the sender again. The DH-encrypted
-plaintext is exactly the in-band channel that delivers the note-specific half of
-the Spend witness, sized to the bytes the receiver could not have otherwise
-reconstructed.
+The first four rows are exactly the data the sender delivered through
+`enc_ciphertext` + the on-chain `cmu`. The next two come from the receiver's own
+spending key. The last two are local randomness. Nothing more is needed, and in
+particular the receiver never has to talk to the sender again.
 
 The same logic explains why the receiver also recomputes `pk_d` from their own
 `ivk` rather than reading it from the ciphertext: the Spend circuit re-derives
@@ -222,7 +267,7 @@ The same logic explains why the receiver also recomputes `pk_d` from their own
 between the decrypted note and the receiver's `ivk` shows up as a witness that
 fails to satisfy constraint 8 (the note commitment).
 
-### 4.3 Why the Output circuit can skip recipient authentication
+### 4.4 Why the Output circuit can skip recipient authentication
 
 Definition 11.2 has the Output circuit witnessing `pk_d` as an **unchecked field
 element**: no on-curve check, no subgroup check, no proof that `pk_d`
